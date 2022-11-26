@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ An experimental code editor library on Android.
+  ~ https://github.com/CaiMuCheng/MceEditor
+  ~ Copyright (c) 2022 CaiMuCheng - All rights reserved
+  ~
+  ~ This library is free software. You can redistribute it or
+  ~ modify it under the terms of the Mozilla Public
+  ~ License Version 2.0 by the Mozilla.
+  ~
+  ~ You can use it for commercial purposes, but you must
+  ~ know the copyright's owner is author and mark the copyright
+  ~ with author in your project.
+  ~
+  ~ Do not without the author, the license, the repository link.
+  -->
+
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.MceEditor" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/purple_200</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_200</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- Customize your theme here. -->
+    </style>
+</resources>
