@@ -1,17 +1,18 @@
 package io.github.mucheng.mce.textmodel.indexer
 
-import io.github.mucheng.mce.textmodel.model.TextModel
 import io.github.mucheng.mce.textmodel.base.IIndexer
-import io.github.mucheng.mce.textmodel.event.TextModelEvent
+import io.github.mucheng.mce.textmodel.listener.ITextModelListener
+import io.github.mucheng.mce.textmodel.model.TextModel
 import io.github.mucheng.mce.textmodel.position.CharPosition
-import java.util.Collections
+import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.math.abs
 
 @Suppress("unused")
-open class CachedIndexer(open val textModel: TextModel) : IIndexer, TextModelEvent {
+open class CachedIndexer(open val textModel: TextModel) : IIndexer, ITextModelListener {
 
     companion object {
-        const val CACHE_CAPACITY = 100
+        private const val CACHE_CAPACITY = 100
     }
 
     private val cache: MutableList<CharPosition> = ArrayList(CACHE_CAPACITY + 1)
@@ -261,7 +262,7 @@ open class CachedIndexer(open val textModel: TextModel) : IIndexer, TextModelEve
         while (workIndex > index) {
             workIndex -= workColumn + 1
             workLine--
-            workColumn = if (workLine != -1) {
+            workColumn = if (workLine != 1) {
                 textModel.getTextRowSize(workLine)
             } else {
                 return findPositionByIndexForward(index, zeroPosition)

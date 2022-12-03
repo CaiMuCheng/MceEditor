@@ -1,19 +1,24 @@
 package io.github.mucheng.mce.textmodel.iterator
 
-import io.github.mucheng.mce.textmodel.model.TextModel
 import kotlin.collections.CharIterator
 
-open class CharIterator(open val textModel: TextModel) : CharIterator() {
+open class CharIterator<T : CharSequence>(textRow: T) : CharIterator() {
 
-    private var index: Int = -1
+    private val textRow: T
+
+    private var index: Int
+
+    init {
+        this.textRow = textRow
+        this.index = -1
+    }
 
     override fun hasNext(): Boolean {
-        return index + 1 < textModel.length
+        return index + 1 < textRow.length
     }
 
     override fun nextChar(): Char {
-        ++index
-        return textModel[index]
+        return textRow[index++]
     }
 
 }

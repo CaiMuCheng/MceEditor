@@ -17,18 +17,18 @@
 package io.github.mucheng.mce.text.measure
 
 import io.github.mucheng.mce.annotations.UnsupportedUserUsage
-import io.github.mucheng.mce.textmodel.event.TextModelEvent
+import io.github.mucheng.mce.textmodel.listener.ITextModelListener
 import io.github.mucheng.mce.textmodel.model.TextModel
-import io.github.mucheng.mce.textmodel.util.Converter
 import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
 
 @Suppress("LeakingThis")
 open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : IMeasureCache,
-    TextModelEvent {
+    ITextModelListener {
 
     companion object {
         private val logger = Logger("MeasureCache")
+        private const val DEBUG = true
     }
 
     private var textModel: TextModel
@@ -41,21 +41,23 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         this.textModel = textModel
         this.editorRenderer = editorRenderer
         buildMeasureCache()
-        textModel.addEvent(this)
+        textModel.addListener(this)
     }
 
     /**
      * This method will measure all rows and cache them.
      * */
     @UnsupportedUserUsage
-    private fun buildMeasureCache() {
+    override fun buildMeasureCache() {
         cache.clear()
         var workLine = 1
         while (workLine <= textModel.lastLine) {
             cache.add(MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer))
             ++workLine
         }
-        logger.e("Cache: $cache")
+        if (DEBUG) {
+            logger.e("Build measure cache: $cache")
+        }
     }
 
     override fun getMeasureCacheRow(line: Int): MeasureCacheRow {
@@ -76,7 +78,7 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
     }
 
     override fun destroy() {
-        textModel.removeEvent(this)
+        textModel.removeListener(this)
         cache.clear()
     }
 
@@ -91,22 +93,23 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
             cache[startLine - 1].afterInsert(startColumn, endColumn, charSequence)
         } else {
             var workLine = startLine + 1
-            while (workLine <= endLine - 1) {
-                cache.add(workLine, MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer))
+            while (workLine <= endLine) {
+                cache.add(
+                    workLine - 1,
+                    MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer)
+                )
                 ++workLine
             }
+
             val startTextRow = textModel.getTextRow(startLine)
-            val endTextRow = textModel.getTextRow(endLine)
             cache[startLine - 1].afterInsert(
                 startColumn,
                 startTextRow.length,
                 startTextRow.subSequence(startColumn, startTextRow.length)
             )
-            cache[endLine - 1].afterInsert(
-                0,
-                endColumn,
-                endTextRow.subSequence(0, endColumn)
-            )
+        }
+        if (DEBUG) {
+            logger.e("Cached values: $cache")
         }
     }
 
@@ -118,19 +121,23 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         charSequence: CharSequence
     ) {
         if (startLine == endLine) {
+            logger.e("call text: $charSequence")
             cache[startLine - 1].afterDelete(startColumn, endColumn)
         } else {
-            cache.removeAt(Converter.lineToIndex(endLine))
+            cache.removeAt(endLine - 1)
             val workLine = startLine + 1
             if (workLine < endLine) {
                 var modCount = 0
                 val size = endLine - workLine
                 while (modCount < size) {
-                    val element = cache.removeAt(Converter.lineToIndex(workLine))
+                    val element = cache.removeAt(workLine - 1)
                     element.destroy()
                     ++modCount
                 }
             }
+        }
+        if (DEBUG) {
+            logger.e("Cached values: $cache")
         }
     }
 

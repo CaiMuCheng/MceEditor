@@ -18,10 +18,13 @@ package io.github.mucheng.mce.widget.renderer
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import io.github.mucheng.mce.util.CachedPaint
 import io.github.mucheng.mce.util.DrawUtil
 import io.github.mucheng.mce.widget.CodeEditor
 
+@Suppress("OPT_IN_USAGE")
 class EditorRenderer(editor: CodeEditor) {
 
     private val editor: CodeEditor
@@ -30,7 +33,17 @@ class EditorRenderer(editor: CodeEditor) {
 
     private val codePaint: CachedPaint
 
+    private val tabPaint: Paint
+
+    private val whitespacePaint: Paint
+
+    private val cursorPaint: Paint
+
     private var lineNumberWidth: Float = 0f
+
+    private val tabRectCache: RectF
+
+    private val cursorRectCache: RectF
 
     init {
         this.editor = editor
@@ -42,6 +55,26 @@ class EditorRenderer(editor: CodeEditor) {
             color = Color.BLACK
             isAntiAlias = true
         }
+        this.tabPaint = Paint().apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 1f
+            isAntiAlias = true
+        }
+        this.whitespacePaint = Paint().apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 1f
+            isAntiAlias = true
+        }
+        this.cursorPaint = Paint().apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 1f
+            isAntiAlias = true
+        }
+        this.tabRectCache = RectF()
+        this.cursorRectCache = RectF()
     }
 
     fun getLineNumberPaint(): CachedPaint {
@@ -55,27 +88,32 @@ class EditorRenderer(editor: CodeEditor) {
     fun update() {
         lineNumberPaint.textSize = editor.getTextSizePx()
         lineNumberPaint.typeface = editor.getTypeface()
+        lineNumberPaint.updateAttributes()
+
         codePaint.textSize = editor.getTextSizePx()
         codePaint.typeface = editor.getTypeface()
+        codePaint.updateAttributes()
     }
 
     fun onDraw(canvas: Canvas) {
         drawLineNumber(canvas)
         drawCode(canvas)
+        drawCursor(canvas)
     }
 
     private fun drawLineNumber(canvas: Canvas) {
         var workLine = editor.getLayout().getStartVisibleRow()
         val targetLine = editor.getLayout().getEndVisibleRow()
+        val spacing = editor.getLineNumberSpacingPx()
         while (workLine <= targetLine) {
             val line = workLine.toString()
-            val y = (workLine * editor.getRowHeight()).toFloat()
+            val y = editor.getRowBaseline(workLine).toFloat()
             DrawUtil.drawTextRun(
                 canvas,
                 line,
                 0,
                 line.length,
-                0f,
+                spacing,
                 y,
                 false,
                 lineNumberPaint
@@ -83,6 +121,7 @@ class EditorRenderer(editor: CodeEditor) {
             ++workLine
         }
         lineNumberWidth = lineNumberPaint.measureText(editor.getText().lastLine.toString())
+        lineNumberWidth += spacing * 2
     }
 
     private fun drawCode(canvas: Canvas) {
@@ -90,21 +129,116 @@ class EditorRenderer(editor: CodeEditor) {
         val layout = editor.getLayout()
         var workLine = editor.getLayout().getStartVisibleRow()
         val targetLine = editor.getLayout().getEndVisibleRow()
+        val measureCache = editor.getMeasureCache()
         while (workLine <= targetLine) {
+            val measureCacheRow = measureCache.getMeasureCacheRow(workLine)
+            val cache = measureCacheRow.getMeasureCache()
             val textRow = textModel.getTextRow(workLine)
-            val y = (workLine * editor.getRowHeight()).toFloat()
-            DrawUtil.drawTextRun(
-                canvas,
-                textRow,
-                layout.getStartVisibleColumn(workLine),
-                layout.getEndVisibleColumn(workLine),
-                lineNumberWidth,
-                y,
-                false,
-                lineNumberPaint
-            )
+            val y = (editor.getRowBaseline(workLine)).toFloat()
+            var offsetWidth = lineNumberWidth
+            var workIndex = layout.getStartVisibleColumn(workLine)
+            val endIndex = layout.getEndVisibleColumn(workLine)
+            while (workIndex < endIndex) {
+                if (textRow[workIndex] == '\t') {
+                    val tabWidth = if (editor.isMeasureTabUseWhitespace()) {
+                        lineNumberPaint.getSpaceWidth()
+                    } else {
+                        cache[workIndex]
+                    }
+                    val totalTabWidth = tabWidth * editor.getTabWidth()
+                    val drawTableY =
+                        (workLine - 1) * editor.getRowHeight() + editor.getRowHeight() / 2f
+                    val smallTabWidth = tabWidth / 3f
+                    drawTab(
+                        canvas,
+                        offsetWidth + smallTabWidth,
+                        offsetWidth + totalTabWidth - smallTabWidth,
+                        drawTableY
+                    )
+                    offsetWidth += totalTabWidth
+                    ++workIndex
+                    continue
+                }
+                if (textRow[workIndex] == ' ') {
+                    val whitespaceWidth = cache[workIndex]
+                    val cx = offsetWidth + whitespaceWidth / 2f
+                    val cy =
+                        (workLine - 1) * editor.getRowHeight() / 2f + workLine * editor.getRowHeight() / 2f
+                    val radius = 5f
+                    drawWhitespace(canvas, cx, cy, radius)
+                    offsetWidth += whitespaceWidth
+                    ++workIndex
+                    continue
+                }
+                DrawUtil.drawTextRun(
+                    canvas,
+                    textRow,
+                    workIndex,
+                    workIndex + 1,
+                    offsetWidth,
+                    y,
+                    false,
+                    codePaint
+                )
+                offsetWidth += cache[workIndex]
+                ++workIndex
+            }
             ++workLine
         }
+    }
+
+    private fun drawTab(canvas: Canvas, startX: Float, endX: Float, y: Float) {
+        tabRectCache.set(startX, y, endX, y)
+        canvas.drawRect(tabRectCache, tabPaint)
+    }
+
+    @Suppress("SameParameterValue")
+    private fun drawWhitespace(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
+        canvas.drawCircle(
+            cx, cy, radius, whitespacePaint
+        )
+    }
+
+    @Suppress("OPT_IN_USAGE")
+    private fun drawCursor(canvas: Canvas) {
+        val cursor = editor.getCursor()
+        val workLine = editor.getLayout().getStartVisibleRow()
+        val targetLine = editor.getLayout().getEndVisibleRow()
+        if (cursor.isSelected() || (cursor.getLeftLine() < workLine || cursor.getLeftLine() > targetLine)) {
+            return
+        }
+
+        val measureCache = editor.getMeasureCache()
+        val measureCacheRow = measureCache.getMeasureCacheRow(cursor.getLeftLine())
+        val cache = measureCacheRow.getMeasureCache()
+        val len = cursor.getLeftColumn()
+        val textRow = editor.getText().getTextRow(cursor.getLeftLine())
+
+        var left = lineNumberWidth
+        var index = 0
+        while (index < len) {
+            if (textRow[index] == '\t') {
+                left += if (editor.isMeasureTabUseWhitespace()) {
+                    lineNumberPaint.getSpaceWidth() * editor.getTabWidth()
+                } else {
+                    cache[index] * editor.getTabWidth()
+                }
+                ++index
+                continue
+            }
+            left += cache[index]
+            ++index
+        }
+
+        val top = ((cursor.getLeftLine() - 1) * editor.getRowHeight()).toFloat()
+        val bottom = top + editor.getRowHeight()
+
+        cursorRectCache.set(left, top, left, bottom)
+        canvas.drawRect(cursorRectCache, cursorPaint)
+    }
+
+    fun getLineNumberWidth(): Float {
+        return lineNumberWidth
     }
 
 }

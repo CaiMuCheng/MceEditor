@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(viewBinding.root)
 
         val editor = viewBinding.editor
+        editor.setLineSpacing(2f, 1.1f)
         editor.setTypeface(Typeface.createFromAsset(assets, "font/JetBrainsMono-Regular.ttf"))
         editor.invalidate()
     }

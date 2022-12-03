@@ -1,33 +1,64 @@
 package io.github.mucheng.mce.textmodel.model.android
 
-import io.github.mucheng.mce.annotations.UnsafeApi
+import io.github.mucheng.mce.textmodel.annoations.UnsafeApi
 import io.github.mucheng.mce.textmodel.model.TextModel
-import io.github.mucheng.mce.textmodel.model.TextRow
+import io.github.mucheng.mce.textmodel.util.CharTable
 
 @Suppress("unused")
-open class AndroidTextModel(capacity: Int, threadSafe: Boolean) : TextModel(capacity, threadSafe) {
+open class AndroidTextModel(capacity: Int) : TextModel(capacity) {
 
-    constructor(capacity: Int) : this(capacity, true)
+    companion object {
 
-    constructor(threadSafe: Boolean) : this(DEFAULT_CAPACITY, threadSafe)
+        private const val DEFAULT_ROW_CAPACITY = 50
 
-    constructor() : this(DEFAULT_CAPACITY, true)
+        /**
+         * Create AndroidTextModel from charSequence
+         * @param charSequence text
+         * @return the created AndroidTextModel
+         * */
+        @JvmStatic
+        @JvmName("newInstance")
+        operator fun invoke(charSequence: CharSequence): AndroidTextModel {
+            val textModel = AndroidTextModel()
+            textModel.append(charSequence)
+            return textModel
+        }
 
-    @Suppress("OPT_IN_USAGE", "LeakingThis")
-    constructor(charSequence: CharSequence) : this(DEFAULT_CAPACITY) {
-        appendUnsafe(charSequence)
+        /**
+         * Create AndroidTextModel from list of charSequence
+         * @param charSequenceList text of lines
+         * @return the created AndroidTextModel
+         * */
+        @JvmStatic
+        @JvmName("newInstance")
+        operator fun invoke(charSequenceList: List<CharSequence>): AndroidTextModel {
+            val textModel = AndroidTextModel(charSequenceList.size)
+            val size = charSequenceList.size
+            var index = 0
+            while (index < size) {
+                textModel.append(charSequenceList[index])
+                if (index + 1 < size) {
+                    textModel.append(CharTable.LF_STRING)
+                }
+                ++index
+            }
+            return textModel
+        }
+
+        /**
+         * Create an empty TextModel
+         * @return the created TextModel
+         * */
+        @JvmStatic
+        @JvmName("newInstance")
+        operator fun invoke(): AndroidTextModel {
+            return AndroidTextModel(DEFAULT_ROW_CAPACITY)
+        }
+
     }
 
-    @Suppress("OPT_IN_USAGE", "LeakingThis")
-    constructor(charSequence: CharSequence, threadSafe: Boolean) : this(
-        DEFAULT_CAPACITY,
-        threadSafe
-    ) {
-        appendUnsafe(charSequence)
-    }
-
-    override fun createTextRow(): TextRow {
-        return AndroidTextRow()
+    override fun createTextRow(capacity: Int): AndroidTextRow {
+        return AndroidTextRow(capacity)
     }
 
     override fun getTextRow(line: Int): AndroidTextRow {

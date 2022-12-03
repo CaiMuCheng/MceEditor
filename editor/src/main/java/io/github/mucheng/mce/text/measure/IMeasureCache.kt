@@ -20,6 +20,8 @@ import io.github.mucheng.mce.textmodel.model.TextModel
 
 interface IMeasureCache {
 
+    fun buildMeasureCache()
+
     fun getMeasureCacheRow(line: Int): IMeasureCacheRow
 
     fun getMeasureCache(): List<IMeasureCacheRow>

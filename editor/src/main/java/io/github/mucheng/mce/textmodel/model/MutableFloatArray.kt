@@ -2,38 +2,37 @@ package io.github.mucheng.mce.textmodel.model
 
 import io.github.mucheng.mce.textmodel.annoations.UnsafeApi
 import io.github.mucheng.mce.textmodel.exception.IndexOutOfBoundsException
-import io.github.mucheng.mce.textmodel.iterator.CharIterator
 import java.util.*
 
 @Suppress("unused")
-open class TextRow(capacity: Int) : CharSequence {
+open class MutableFloatArray(capacity: Int) {
 
     companion object Invoker {
 
         private const val DEFAULT_CAPACITY = 10
 
         /**
-         * Create TextRow from charSequence
-         * @param charSequence text
-         * @return the created TextRow
+         * Create MutableFloatArray from FloatArray
+         * @param floatArray text
+         * @return the created MutableFloatArray
          * */
         @JvmStatic
         @JvmName("newInstance")
-        operator fun invoke(charSequence: CharSequence): TextRow {
-            val textRow = TextRow(charSequence.length)
-            textRow.append(charSequence)
-            return textRow
+        operator fun invoke(floatArray: FloatArray): MutableFloatArray {
+            val mutableFloatArray = MutableFloatArray(floatArray.size)
+            mutableFloatArray.append(floatArray)
+            return mutableFloatArray
         }
 
         @JvmStatic
         @JvmName("newInstance")
-        operator fun invoke(): TextRow {
-            return TextRow(DEFAULT_CAPACITY)
+        operator fun invoke(): MutableFloatArray {
+            return MutableFloatArray(DEFAULT_CAPACITY)
         }
 
     }
 
-    private var value: CharArray
+    private var value: FloatArray
 
     val capacity: Int
         get() {
@@ -42,69 +41,69 @@ open class TextRow(capacity: Int) : CharSequence {
 
     private var _length: Int
 
-    override val length: Int
+    val length: Int
         get() {
             return _length
         }
 
     init {
         // do init
-        this.value = CharArray(if (capacity < DEFAULT_CAPACITY) DEFAULT_CAPACITY else capacity)
+        this.value = FloatArray(if (capacity < DEFAULT_CAPACITY) DEFAULT_CAPACITY else capacity)
         this._length = 0
     }
 
     open fun ensureCapacity(capacity: Int) {
         if (value.size < capacity) {
             // copy the value
-            val newValue = CharArray(if (value.size * 2 < capacity) capacity + 2 else value.size * 2)
+            val newValue = FloatArray(if (value.size * 2 < capacity) capacity + 2 else value.size * 2)
             System.arraycopy(value, 0, newValue, 0, _length)
             value = newValue
         }
     }
 
-    open fun insert(index: Int, char: Char) {
+    open fun insert(index: Int, float: Float) {
         checkIndex(index, allowEqualsLength = true)
         ensureCapacity(_length + 1)
         if (index < _length) {
             System.arraycopy(value, index, value, 1 + index, _length - index)
         }
-        value[index] = char
+        value[index] = float
         ++_length
     }
 
-    open fun append(char: Char) {
-        return insert(_length, char)
+    open fun append(float: Float) {
+        return insert(_length, float)
     }
 
     open fun insert(
         index: Int,
-        charSequence: CharSequence,
-        charSequenceStartIndex: Int,
-        charSequenceEndIndex: Int
+        floatArray: FloatArray,
+        floatArrayStartIndex: Int,
+        floatArrayEndIndex: Int
     ) {
         checkIndex(index, allowEqualsLength = true)
-        val len = charSequenceEndIndex - charSequenceStartIndex
+        val len = floatArrayEndIndex - floatArrayStartIndex
         ensureCapacity(_length + len)
         System.arraycopy(value, index, value, len + index, _length - index)
         var offset = index
-        var charIndex = charSequenceStartIndex
+        var charIndex = floatArrayStartIndex
         while (charIndex < len) {
-            val char = charSequence[charIndex]
-            value[offset++] = char
+            val float = floatArray[charIndex]
+            value[offset++] = float
             ++charIndex
         }
         _length += len
     }
 
-    open fun insert(index: Int, charSequence: CharSequence) {
-        return insert(index, charSequence, 0, charSequence.length)
+    open fun insert(index: Int, floatArray: FloatArray) {
+        return insert(index, floatArray, 0, floatArray.size)
     }
 
-    open fun append(charSequence: CharSequence) {
-        return insert(_length, charSequence)
+    open fun append(floatArray: FloatArray) {
+        return insert(_length, floatArray)
     }
 
-    open fun deleteCharAt(index: Int) {
+    open fun deleteAt(index: Int) {
         checkIndex(index, allowEqualsLength = false)
         return delete(index, index + 1)
     }
@@ -126,84 +125,39 @@ open class TextRow(capacity: Int) : CharSequence {
         return delete(index, _length)
     }
 
-    override fun get(index: Int): Char {
+    open operator fun get(index: Int): Float {
         checkIndex(index, allowEqualsLength = false)
         return value[index]
     }
 
-    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
-        checkIndexRange(startIndex, endIndex)
-        val len = endIndex - startIndex
-        val textRow = TextRow(len)
-        var index = startIndex
-        while (index < endIndex) {
-            textRow.append(value[index])
-            ++index
-        }
-        return textRow
-    }
-
-    open fun subSequenceBefore(index: Int): CharSequence {
-        return subSequence(0, index)
-    }
-
-    open fun subSequenceAfter(index: Int): CharSequence {
-        return subSequence(index, _length)
-    }
-
-    open fun appendTo(stringBuilder: StringBuilder, fromIndex: Int, toIndex: Int) {
-        checkIndexRange(fromIndex, toIndex)
-        stringBuilder.ensureCapacity(stringBuilder.capacity() + _length)
-        var index = fromIndex
-        while (index < toIndex) {
-            stringBuilder.append(value[index])
-            ++index
-        }
-    }
-
-    open fun appendToBefore(stringBuilder: StringBuilder, index: Int) {
-        return appendTo(stringBuilder, 0, index)
-    }
-
-    open fun appendToAfter(stringBuilder: StringBuilder, index: Int) {
-        return appendTo(stringBuilder, index, _length)
-    }
-
-    open fun appendTo(stringBuilder: StringBuilder) {
-        return appendTo(stringBuilder, 0, _length)
-    }
-
-    open fun copy(): TextRow {
-        val textRow = createTextRow(_length)
+    open fun copy(): MutableFloatArray {
+        val mutableFloatArray = createMutableFloatArray(_length)
         var index = 0
         while (index < _length) {
-            textRow.append(value[index])
+            mutableFloatArray.append(value[index])
             ++index
         }
-        return textRow
+        return mutableFloatArray
     }
 
     @Suppress("MemberVisibilityCanBePrivate")
-    protected open fun createTextRow(capacity: Int): TextRow {
-        return TextRow(capacity)
-    }
-
-    open fun charIterator(): CharIterator<TextRow> {
-        return CharIterator(this)
+    protected open fun createMutableFloatArray(capacity: Int): MutableFloatArray {
+        return MutableFloatArray(capacity)
     }
 
     @UnsafeApi
-    open fun getUnsafeValue(): CharArray {
+    open fun getUnsafeValue(): FloatArray {
         return this.value
     }
 
-    open fun clear() {
-        this.value = CharArray(0)
-        _length = 0
+    @UnsafeApi
+    open fun setLength(length: Int) {
+        this._length = length
     }
 
-    override fun toString(): String {
-        return String(value, 0, _length)
+    open fun clear() {
+        this.value = FloatArray(0)
+        _length = 0
     }
 
     @Suppress("OPT_IN_USAGE")
@@ -214,7 +168,7 @@ open class TextRow(capacity: Int) : CharSequence {
         if (other === this) {
             return true
         }
-        if (other !is TextRow) {
+        if (other !is MutableFloatArray) {
             return false
         }
         return value.contentEquals(other.getUnsafeValue())

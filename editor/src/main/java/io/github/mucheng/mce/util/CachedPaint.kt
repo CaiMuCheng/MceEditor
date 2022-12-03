@@ -44,22 +44,6 @@ class CachedPaint : TextPaint() {
 
     fun setTypefaceWrapper(typeface: Typeface?) {
         super.setTypeface(typeface)
-        updateAttributes()
-    }
-
-    override fun setTextSize(textSize: Float) {
-        super.setTextSize(textSize)
-        updateAttributes()
-    }
-
-    override fun setFontFeatureSettings(settings: String?) {
-        super.setFontFeatureSettings(settings)
-        updateAttributes()
-    }
-
-    override fun setLetterSpacing(letterSpacing: Float) {
-        super.setLetterSpacing(letterSpacing)
-        updateAttributes()
     }
 
     fun getEmptyWidth(): Float {

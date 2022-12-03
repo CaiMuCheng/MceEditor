@@ -1,12 +1,13 @@
-package io.github.mucheng.mce.textmodel.event
+package io.github.mucheng.mce.textmodel.listener
 
-interface TextModelEvent {
+interface ITextModelListener {
 
     fun beforeInsert(
         line: Int,
         column: Int,
         charSequence: CharSequence
-    ) {}
+    ) {
+    }
 
     fun beforeDelete(
         startLine: Int,
@@ -14,7 +15,8 @@ interface TextModelEvent {
         endLine: Int,
         endColumn: Int,
         charSequence: CharSequence
-    ) {}
+    ) {
+    }
 
     fun afterInsert(
         startLine: Int,
@@ -22,7 +24,8 @@ interface TextModelEvent {
         endLine: Int,
         endColumn: Int,
         charSequence: CharSequence
-    )
+    ) {
+    }
 
     fun afterDelete(
         startLine: Int,
@@ -30,6 +33,7 @@ interface TextModelEvent {
         endLine: Int,
         endColumn: Int,
         charSequence: CharSequence
-    )
+    ) {
+    }
 
 }

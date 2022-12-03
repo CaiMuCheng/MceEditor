@@ -77,23 +77,22 @@ class TextModelLayout(editor: CodeEditor) : Layout {
         val measureCacheRow = editor.getMeasureCache().getMeasureCacheRow(line)
         val measureCache = measureCacheRow.getMeasureCache()
         val textRow = editor.getText().getTextRow(line)
-        var widths = 0f
+        var widths = editor.getEditorRenderer().getLineNumberWidth()
         var workIndex = 0
-        while (workIndex < measureCacheRow.getMeasureCacheLength()) {
+        while (workIndex < textRow.length) {
             val char = textRow[workIndex]
-            val lastWidths = widths
             widths += if (isTabChar(char)) {
-                measureCache[workIndex] * editor.getTabWidth()
+                if (editor.isMeasureTabUseWhitespace()) {
+                    editor.getEditorRenderer().getLineNumberPaint()
+                        .getSpaceWidth() * editor.getTabWidth()
+                } else {
+                    measureCache[workIndex] * editor.getTabWidth()
+                }
             } else {
                 measureCache[workIndex]
             }
 
             if (widths > offsetX) {
-                val lastDistance = offsetX - lastWidths
-                val currentDistance = widths - offsetX
-                if (currentDistance < lastDistance) {
-                    workIndex += 1
-                }
                 break
             }
             ++workIndex

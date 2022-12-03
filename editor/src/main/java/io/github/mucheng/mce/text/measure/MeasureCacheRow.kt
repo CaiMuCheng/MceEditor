@@ -16,116 +16,82 @@
 
 package io.github.mucheng.mce.text.measure
 
-import io.github.mucheng.mce.annotations.UnsupportedUserUsage
+import io.github.mucheng.mce.textmodel.model.MutableFloatArray
 import io.github.mucheng.mce.textmodel.model.TextRow
+import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
 
 class MeasureCacheRow(textRow: TextRow, editorRenderer: EditorRenderer) : IMeasureCacheRow {
 
+    companion object {
+        private val logger = Logger("MeasureCacheRow")
+    }
+
     private var textRow: TextRow
 
-    private var editorRenderer: EditorRenderer
+    private val editorRenderer: EditorRenderer
 
-    private var cache: FloatArray?
+    private val mutableFloatArray: MutableFloatArray
 
-    private val cachedCharWidth: FloatArray
-
-    private var length: Int
+    private val length: Int
+        get() {
+            return mutableFloatArray.length
+        }
 
     init {
         this.textRow = textRow
         this.editorRenderer = editorRenderer
-        this.cache = FloatArray(textRow.length)
-        this.cachedCharWidth = FloatArray(1)
-        this.length = textRow.length
+        this.mutableFloatArray = MutableFloatArray(textRow.length)
+
         buildMeasureCache()
     }
 
-    /**
-     * This method will measure all rows and cache them.
-     * */
-    @UnsupportedUserUsage
+    @Suppress("OPT_IN_USAGE")
     private fun buildMeasureCache() {
-        if (cache != null) {
-            val codePaint = editorRenderer.getCodePaint()
-            codePaint.myGetTextWidths(textRow, 0, length, cache!!)
-        }
+        mutableFloatArray.clear()
+        mutableFloatArray.ensureCapacity(textRow.length)
+
+        val paint = editorRenderer.getCodePaint()
+        paint.myGetTextWidths(textRow, 0, textRow.length, mutableFloatArray.getUnsafeValue())
+        mutableFloatArray.setLength(textRow.length)
+    }
+
+    @Suppress("OPT_IN_USAGE")
+    override fun getMeasureCache(): FloatArray {
+        return this.mutableFloatArray.getUnsafeValue()
     }
 
     override fun getMeasureCacheLength(): Int {
-        return this.length
-    }
-
-    private fun ensureCapacity(capacity: Int) {
-        if (cache != null) {
-            if (cache!!.size < capacity) {
-                val targetCapacity: Int = if (cache!!.size * 2 < capacity) {
-                    capacity + 2
-                } else {
-                    cache!!.size * 2
-                }
-                // 进行扩容
-                // 复制内容到此数组中, 底层为 System.arraycopy
-                cache = cache!!.copyInto(FloatArray(targetCapacity))
-            }
-        }
-    }
-
-    override fun getMeasureCache(): FloatArray {
-        return cache ?: FloatArray(0)
+        return length
     }
 
     override fun setTextRow(textRow: TextRow) {
         this.textRow = textRow
-        length = textRow.length
-        ensureCapacity(length)
         buildMeasureCache()
     }
 
     override fun getTextRow(): TextRow {
-        return textRow
-    }
-
-    private fun measureChar(charSequence: CharSequence, index: Int, widths: FloatArray): Float {
-        val codePaint = editorRenderer.getCodePaint()
-        codePaint.getTextWidths(charSequence, index, index + 1, widths)
-        return widths[0]
+        return this.textRow
     }
 
     override fun afterInsert(startIndex: Int, endIndex: Int, charSequence: CharSequence) {
-        if (cache != null) {
-            val len = endIndex - startIndex
-            ensureCapacity(length + len)
-
-            // Use Fast Native method to array copy.
-            System.arraycopy(cache!!, startIndex, cache!!, startIndex + len, length - startIndex)
-            var workIndex = 0
-            var offset = startIndex
-            while (workIndex < charSequence.length) {
-                cache!![offset++] = measureChar(charSequence, workIndex, cachedCharWidth)
-                ++workIndex
-            }
-            length += len
-        }
+        val cache = FloatArray(endIndex - startIndex)
+        val paint = editorRenderer.getCodePaint()
+        paint.myGetTextWidths(charSequence, 0, charSequence.length, cache)
+        mutableFloatArray.insert(startIndex, cache)
     }
 
     override fun afterDelete(startIndex: Int, endIndex: Int) {
-        if (cache != null) {
-            val len = endIndex - startIndex
-            if (len > 0) {
-                System.arraycopy(cache!!, startIndex + len, cache!!, startIndex, length - endIndex)
-            }
-            length -= len
-        }
+        mutableFloatArray.delete(startIndex, endIndex)
     }
 
     override fun destroy() {
-        cache = null
-        cachedCharWidth[0] = 0f
+        this.mutableFloatArray.clear()
     }
 
     override fun toString(): String {
-        return "MeasureCacheRow(textRow=$textRow, editorRenderer=$editorRenderer, cache=${cache?.contentToString()}, cachedCharWidth=${cachedCharWidth.contentToString()}, length=$length)"
+        return "MeasureCacheRow(textRow=$textRow, mutableFloatArray=${getMeasureCache().contentToString()}, length=$length)"
     }
+
 
 }
