@@ -24,6 +24,8 @@ interface IMeasureCacheRow {
 
     fun getMeasureCacheLength(): Int
 
+    fun append(floatArray: FloatArray)
+
     fun setTextRow(textRow: TextRow)
 
     fun getTextRow(): TextRow

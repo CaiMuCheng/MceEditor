@@ -65,6 +65,11 @@ class MeasureCacheRow(textRow: TextRow, editorRenderer: EditorRenderer) : IMeasu
         return length
     }
 
+    override fun append(floatArray: FloatArray) {
+        // append the cached array
+        this.mutableFloatArray.append(floatArray)
+    }
+
     override fun setTextRow(textRow: TextRow) {
         this.textRow = textRow
         buildMeasureCache()

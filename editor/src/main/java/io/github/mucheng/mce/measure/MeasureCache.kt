@@ -124,8 +124,10 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
             logger.e("call text: $charSequence")
             cache[startLine - 1].afterDelete(startColumn, endColumn)
         } else {
-            cache.removeAt(endLine - 1)
+            val insertedCacheRow = cache.removeAt(endLine - 1)
+            cache[startLine - 1].append(insertedCacheRow.getMeasureCache())
             val workLine = startLine + 1
+            insertedCacheRow.destroy()
             if (workLine < endLine) {
                 var modCount = 0
                 val size = endLine - workLine
