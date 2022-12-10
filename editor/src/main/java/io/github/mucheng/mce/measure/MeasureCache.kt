@@ -14,22 +14,16 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.text.measure
+package io.github.mucheng.mce.measure
 
 import io.github.mucheng.mce.annotations.UnsupportedUserUsage
 import io.github.mucheng.mce.textmodel.listener.ITextModelListener
 import io.github.mucheng.mce.textmodel.model.TextModel
-import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
 
 @Suppress("LeakingThis")
 open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : IMeasureCache,
     ITextModelListener {
-
-    companion object {
-        private val logger = Logger("MeasureCache")
-        private const val DEBUG = true
-    }
 
     private var textModel: TextModel
 
@@ -49,18 +43,17 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
      * */
     @UnsupportedUserUsage
     override fun buildMeasureCache() {
-        cache.clear()
-        var workLine = 1
-        while (workLine <= textModel.lastLine) {
-            cache.add(MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer))
-            ++workLine
-        }
-        if (DEBUG) {
-            logger.e("Build measure cache: $cache")
+        synchronized(this::class.java) {
+            cache.clear()
+            var workLine = 1
+            while (workLine <= textModel.lastLine) {
+                cache.add(MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer))
+                ++workLine
+            }
         }
     }
 
-    override fun getMeasureCacheRow(line: Int): MeasureCacheRow {
+    override fun getMeasureCacheRow(line: Int): MeasureCacheRow? {
         return cache[line - 1]
     }
 
@@ -69,8 +62,12 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
     }
 
     override fun setTextModel(textModel: TextModel) {
-        this.textModel = textModel
-        buildMeasureCache()
+        synchronized(this::class.java) {
+            this.textModel.removeListener(this) // remove old listener
+            this.textModel = textModel
+            buildMeasureCache()
+            textModel.addListener(this) // add new listener
+        }
     }
 
     override fun getTextModel(): TextModel {
@@ -108,9 +105,6 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
                 startTextRow.subSequence(startColumn, startTextRow.length)
             )
         }
-        if (DEBUG) {
-            logger.e("Cached values: $cache")
-        }
     }
 
     override fun afterDelete(
@@ -121,7 +115,6 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         charSequence: CharSequence
     ) {
         if (startLine == endLine) {
-            logger.e("call text: $charSequence")
             cache[startLine - 1].afterDelete(startColumn, endColumn)
         } else {
             val insertedCacheRow = cache.removeAt(endLine - 1)
@@ -137,9 +130,6 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
                     ++modCount
                 }
             }
-        }
-        if (DEBUG) {
-            logger.e("Cached values: $cache")
         }
     }
 

@@ -42,7 +42,7 @@ class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureLis
 
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         editor.getScroller().forceFinished(true)
-        if (editor.isEditable()) {
+        if (editor.isEditable() && !editor.isMeasureCacheBusy()) {
             val layout = editor.getLayout()
             val line = layout.getOffsetLine(e.y + editor.getOffsetY())
             val column = layout.getOffsetColumn(

@@ -14,18 +14,13 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.text.measure
+package io.github.mucheng.mce.measure
 
 import io.github.mucheng.mce.textmodel.model.MutableFloatArray
 import io.github.mucheng.mce.textmodel.model.TextRow
-import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
 
 class MeasureCacheRow(textRow: TextRow, editorRenderer: EditorRenderer) : IMeasureCacheRow {
-
-    companion object {
-        private val logger = Logger("MeasureCacheRow")
-    }
 
     private var textRow: TextRow
 

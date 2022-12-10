@@ -18,12 +18,10 @@ package io.github.mucheng.mce.widget
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.Typeface
 import android.os.Build
 import android.util.AttributeSet
-import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -33,18 +31,26 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.OverScroller
 import androidx.annotation.Px
-import io.github.mucheng.mce.text.measure.IMeasureCache
-import io.github.mucheng.mce.text.measure.MeasureCache
+import io.github.mucheng.mce.measure.IMeasureCache
+import io.github.mucheng.mce.measure.MeasureCache
 import io.github.mucheng.mce.textmodel.annoations.UnsafeApi
 import io.github.mucheng.mce.textmodel.base.ICursor
 import io.github.mucheng.mce.textmodel.model.TextModel
 import io.github.mucheng.mce.textmodel.model.android.AndroidTextModel
 import io.github.mucheng.mce.textmodel.position.CharPosition
 import io.github.mucheng.mce.textmodel.util.Cursor
+import io.github.mucheng.mce.util.ContextUtil
 import io.github.mucheng.mce.util.Logger
+import io.github.mucheng.mce.event.EditorEventHandler
 import io.github.mucheng.mce.widget.layout.Layout
 import io.github.mucheng.mce.widget.layout.TextModelLayout
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 /**
@@ -62,7 +68,7 @@ open class CodeEditor @JvmOverloads constructor(
     companion object {
         const val DEFAULT_TEXT_SIZE = 18f
         const val DEFAULT_LINE_NUMBER_SPACING = 5f
-        val logger = Logger("CodeEditor")
+        private val logger = Logger("CodeEditor")
     }
 
     private var textModel: TextModel
@@ -81,6 +87,8 @@ open class CodeEditor @JvmOverloads constructor(
 
     private val editorTouchEventHandler: EditorTouchEventHandler
 
+    private var editorEventHandler: EditorEventHandler
+
     private val gestureDetector: GestureDetector
 
     private val inputConnection: EditorInputConnection
@@ -89,9 +97,13 @@ open class CodeEditor @JvmOverloads constructor(
 
     private var autoBuildMeasureCache = true
 
-    private var tabWidth = 1
+    private val isMeasureCacheBusy = AtomicBoolean(false)
+
+    private val isMeasureCacheInMainThread = AtomicBoolean(false)
 
     private var measureTabUseWhitespace = true
+
+    private var tabWidth = 1
 
     private var textSizePx = 0f
 
@@ -103,8 +115,10 @@ open class CodeEditor @JvmOverloads constructor(
 
     private var typeface: Typeface
 
+    private var baseCoroutineScope: CoroutineScope
+
     init {
-        textModel = AndroidTextModel("var a = 10\nprint(a);")
+        textModel = AndroidTextModel()
         cursor = Cursor(textModel)
         editorRenderer = EditorRenderer(this)
         measureCache = MeasureCache(textModel, editorRenderer)
@@ -113,18 +127,17 @@ open class CodeEditor @JvmOverloads constructor(
         inputMethodManager =
             context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         editorTouchEventHandler = EditorTouchEventHandler(this)
+        editorEventHandler = EditorEventHandler(this)
         gestureDetector = GestureDetector(context, editorTouchEventHandler).apply {
             setOnDoubleTapListener(editorTouchEventHandler)
         }
         inputConnection = EditorInputConnection(this)
         typeface = Typeface.MONOSPACE
+        baseCoroutineScope =
+            CoroutineScope(Dispatchers.Main + CoroutineName("CodeEditorBaseCoroutine"))
 
-        this.textSizePx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP, DEFAULT_TEXT_SIZE, Resources.getSystem().displayMetrics
-        )
-        this.lineNumberSpacingPx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, DEFAULT_LINE_NUMBER_SPACING, Resources.getSystem().displayMetrics
-        )
+        this.textSizePx = ContextUtil.sp2px(context, DEFAULT_TEXT_SIZE)
+        this.lineNumberSpacingPx = ContextUtil.dip2px(context, DEFAULT_LINE_NUMBER_SPACING)
         setTabWidth(4)
         isFocusable = true
         isFocusableInTouchMode = true
@@ -143,11 +156,11 @@ open class CodeEditor @JvmOverloads constructor(
         if (text is TextModel && resetTextModel) {
             this.textModel = text
         } else {
-            this.textModel = AndroidTextModel(text)
+            this.textModel = TextModel(text)
             this.textModel.setThreadSafe(true)
         }
         this.cursor = Cursor(this.textModel)
-        this.measureCache.setTextModel(textModel)
+        buildMeasureCache(this.textModel)
     }
 
     open fun getText(): TextModel {
@@ -155,10 +168,7 @@ open class CodeEditor @JvmOverloads constructor(
     }
 
     open fun setTextSize(textSize: Float) {
-        val displayMetrics = Resources.getSystem().displayMetrics
-        this.textSizePx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP, textSize, displayMetrics
-        )
+        this.textSizePx = ContextUtil.sp2px(context, textSize)
         editorRenderer.update()
         autoBuildMeasureCache()
     }
@@ -174,10 +184,7 @@ open class CodeEditor @JvmOverloads constructor(
     }
 
     open fun setLineNumberSpacing(spacing: Float) {
-        val displayMetrics = Resources.getSystem().displayMetrics
-        this.lineNumberSpacingPx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, spacing, displayMetrics
-        )
+        this.lineNumberSpacingPx = ContextUtil.dip2px(context, spacing)
     }
 
     open fun setLineNumberSpacingPx(@Px spacing: Float) {
@@ -198,6 +205,14 @@ open class CodeEditor @JvmOverloads constructor(
         return this.typeface
     }
 
+    open fun setBaseCoroutine(baseCoroutineScope: CoroutineScope) {
+        this.baseCoroutineScope = baseCoroutineScope
+    }
+
+    open fun getBaseCoroutine(): CoroutineScope {
+        return this.baseCoroutineScope
+    }
+
     open fun setCursor(cursor: ICursor) {
         this.cursor = cursor
     }
@@ -214,8 +229,55 @@ open class CodeEditor @JvmOverloads constructor(
         return isEditable
     }
 
-    open fun rebuildMeasureCache() {
-        measureCache.buildMeasureCache()
+    override fun invalidate() {
+        if (!this.isMeasureCacheBusy.get()) {
+            super.invalidate()
+        }
+    }
+
+    override fun postInvalidate() {
+        if (!this.isMeasureCacheBusy.get()) {
+            super.postInvalidate()
+        }
+    }
+
+    open fun setEditorEventHandler(editorEventHandler: EditorEventHandler) {
+        this.editorEventHandler = editorEventHandler
+    }
+
+    open fun getEditorEventHandler(): EditorEventHandler {
+        return this.editorEventHandler
+    }
+
+    private fun forceInvalidate() {
+        super.invalidate()
+    }
+
+    open fun buildMeasureCache(textModel: TextModel? = null) {
+        // build the measure cache
+        if (isMeasureCacheInMainThread()) {
+            if (textModel != null) {
+                measureCache.setTextModel(textModel)
+            } else {
+                measureCache.buildMeasureCache()
+            }
+        } else {
+            baseCoroutineScope.launch(Dispatchers.IO + CoroutineName("RebuildMeasureCacheCoroutine")) {
+                isMeasureCacheBusy.set(true)
+                withContext(Dispatchers.Main) {
+                    forceInvalidate()
+                }
+                if (textModel != null) {
+                    measureCache.setTextModel(textModel)
+                } else {
+                    measureCache.buildMeasureCache()
+                }
+            }.invokeOnCompletion {
+                it?.printStackTrace()
+                isMeasureCacheBusy.set(false)
+                invalidate()
+            }
+        }
     }
 
     open fun setAutoBuildMeasureCache(isAutoBuildMeasureCache: Boolean) {
@@ -224,6 +286,18 @@ open class CodeEditor @JvmOverloads constructor(
 
     open fun isAutoBuildMeasureCache(): Boolean {
         return this.autoBuildMeasureCache
+    }
+
+    open fun setMeasureCacheInMainThread(isMeasureCacheInMainThread: Boolean) {
+        this.isMeasureCacheInMainThread.set(isMeasureCacheInMainThread)
+    }
+
+    open fun isMeasureCacheInMainThread(): Boolean {
+        return this.isMeasureCacheInMainThread.get()
+    }
+
+    open fun isMeasureCacheBusy(): Boolean {
+        return this.isMeasureCacheBusy.get()
     }
 
     open fun getEditorRenderer(): EditorRenderer {
@@ -243,7 +317,9 @@ open class CodeEditor @JvmOverloads constructor(
 
     private fun autoBuildMeasureCache() {
         if (autoBuildMeasureCache) {
-            rebuildMeasureCache()
+            buildMeasureCache()
+        } else {
+            invalidate()
         }
     }
 
@@ -471,7 +547,14 @@ open class CodeEditor @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        editorEventHandler.dispatchBeforeOnDrawEvent()
         editorRenderer.onDraw(canvas)
+        editorEventHandler.dispatchAfterOnDrawEvent()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        editorEventHandler.dispatchOnSizeChangedEvent(w, h, oldw, oldh)
     }
 
 }

@@ -45,7 +45,7 @@ class TextModelLayout(editor: CodeEditor) : Layout {
             1,
             min(
                 getRowCount(),
-                (editor.getOffsetY() + getLayoutHeight()) / editor.getRowHeight()
+                (editor.getOffsetY() + getLayoutHeight()) / editor.getRowHeight() + 1
             )
         )
     }
@@ -75,7 +75,7 @@ class TextModelLayout(editor: CodeEditor) : Layout {
     @Suppress("OPT_IN_USAGE")
     override fun getOffsetColumn(line: Int, offsetX: Float): Int {
         val measureCacheRow = editor.getMeasureCache().getMeasureCacheRow(line)
-        val measureCache = measureCacheRow.getMeasureCache()
+        val measureCache = measureCacheRow?.getMeasureCache() ?: return 0
         val textRow = editor.getText().getTextRow(line)
         var widths = editor.getEditorRenderer().getLineNumberWidth()
         var workIndex = 0

@@ -14,7 +14,7 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.text.measure
+package io.github.mucheng.mce.measure
 
 import io.github.mucheng.mce.textmodel.model.TextRow
 

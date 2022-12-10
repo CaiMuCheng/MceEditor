@@ -14,27 +14,12 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.textmodel.iterator
+package io.github.mucheng.mce.event
 
-import kotlin.collections.CharIterator
+interface OnDrawEvent : Event {
 
-open class CharIterator<T : CharSequence>(textRow: T) : CharIterator() {
+    fun onDrawBefore()
 
-    private val textRow: T
-
-    private var index: Int
-
-    init {
-        this.textRow = textRow
-        this.index = -1
-    }
-
-    override fun hasNext(): Boolean {
-        return index + 1 < textRow.length
-    }
-
-    override fun nextChar(): Char {
-        return textRow[index++]
-    }
+    fun onDrawAfter()
 
 }

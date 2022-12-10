@@ -5,7 +5,6 @@ import io.github.mucheng.mce.textmodel.listener.ITextModelListener
 import io.github.mucheng.mce.textmodel.model.TextModel
 import io.github.mucheng.mce.textmodel.position.CharPosition
 import java.util.*
-import kotlin.collections.ArrayList
 import kotlin.math.abs
 
 @Suppress("unused")
@@ -262,7 +261,7 @@ open class CachedIndexer(open val textModel: TextModel) : IIndexer, ITextModelLi
         while (workIndex > index) {
             workIndex -= workColumn + 1
             workLine--
-            workColumn = if (workLine != 1) {
+            workColumn = if (workLine != 0) {
                 textModel.getTextRowSize(workLine)
             } else {
                 return findPositionByIndexForward(index, zeroPosition)

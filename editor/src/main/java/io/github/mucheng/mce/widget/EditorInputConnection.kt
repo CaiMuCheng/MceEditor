@@ -19,15 +19,9 @@ package io.github.mucheng.mce.widget
 import android.view.inputmethod.BaseInputConnection
 import io.github.mucheng.mce.textmodel.base.ICursor
 import io.github.mucheng.mce.textmodel.model.TextModel
-import io.github.mucheng.mce.util.Logger
 
 class EditorInputConnection(editor: CodeEditor) :
     BaseInputConnection(editor, true) {
-
-    companion object {
-        private val logger = Logger("EditorInputConnection")
-        private const val DEBUG = true
-    }
 
     private val editor: CodeEditor
 
@@ -35,27 +29,23 @@ class EditorInputConnection(editor: CodeEditor) :
         this.editor = editor
     }
 
-    fun getEditor(): CodeEditor {
-        return this.editor
-    }
-
     override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        if (DEBUG) {
-            logger.e("Commit text: $text")
-        }
-
+        val textModel = editor.getText()
+        val cursor = editor.getCursor()
         if (!editor.isEditable() || text == null) {
             return false
         }
 
-        commitTextInternal(text)
+        commitTextInternal(text, textModel, cursor)
         editor.invalidate()
         return true
     }
 
-    private fun commitTextInternal(text: CharSequence): CharSequence {
-        val textModel = editor.getText()
-        val cursor = editor.getCursor()
+    private fun commitTextInternal(
+        text: CharSequence,
+        textModel: TextModel,
+        cursor: ICursor
+    ): CharSequence {
         if (!cursor.isSelected()) {
             val line = cursor.getLeftLine()
             val column = cursor.getLeftColumn()
@@ -96,8 +86,8 @@ class EditorInputConnection(editor: CodeEditor) :
                 cursor.set(lastLine, lastColumn)
             } else {
                 val text = textModel.subSequence(line, column - 1, line, column)
-                textModel.delete(line, column - 1, line, column)
                 cursor.moveToLeft(text.length)
+                textModel.delete(line, column - 1, line, column)
             }
         }
     }

@@ -14,7 +14,7 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.text.measure
+package io.github.mucheng.mce.measure
 
 import io.github.mucheng.mce.textmodel.model.TextModel
 
@@ -22,7 +22,7 @@ interface IMeasureCache {
 
     fun buildMeasureCache()
 
-    fun getMeasureCacheRow(line: Int): IMeasureCacheRow
+    fun getMeasureCacheRow(line: Int): IMeasureCacheRow?
 
     fun getMeasureCache(): List<IMeasureCacheRow>
 
