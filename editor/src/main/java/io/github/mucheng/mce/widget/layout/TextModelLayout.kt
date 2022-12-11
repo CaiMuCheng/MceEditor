@@ -16,6 +16,7 @@
 
 package io.github.mucheng.mce.widget.layout
 
+import android.util.Log
 import io.github.mucheng.mce.widget.CodeEditor
 import kotlin.math.max
 import kotlin.math.min
@@ -28,19 +29,10 @@ open class TextModelLayout(editor: CodeEditor) : Layout {
 
     private var isQuick: Boolean
 
-    private var cachedOffset: Int
-
-    private var cachedLine: Int
-
-    private var cachedColumn: Int
-
     init {
         this.editor = editor
         this.isVisibleRowEnabled = true
         this.isQuick = true
-        this.cachedOffset = 0
-        this.cachedLine = 1
-        this.cachedColumn = 0
     }
 
     override fun getLayoutWidth(): Int {
@@ -105,7 +97,7 @@ open class TextModelLayout(editor: CodeEditor) : Layout {
             var offset = 0f
             var workLine = getStartVisibleRow()
             val endLine = getEndVisibleRow()
-            while (workLine < endLine) {
+            while (workLine <= endLine) {
                 val measureCacheRow = measureCache.getMeasureCacheRow(workLine)
                 offset = max(offset, measureCacheRow.getOffset())
                 ++workLine

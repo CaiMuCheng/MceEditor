@@ -1,3 +1,6 @@
+import com.android.build.gradle.tasks.GenerateBuildConfig
+import org.gradle.internal.impldep.org.junit.experimental.categories.Categories.CategoryFilter.exclude
+
 /*
  * An experimental code editor library on Android.
  * https://github.com/CaiMuCheng/MceEditor
@@ -21,9 +24,6 @@ plugins {
 
 android {
     namespace = "io.github.mucheng.mce"
-    libraryVariants.all {
-        generateBuildConfigProvider.get().isEnabled = false
-    }
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -39,6 +39,10 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+}
+
+tasks.withType<GenerateBuildConfig> {
+    isEnabled = false
 }
 
 dependencies {

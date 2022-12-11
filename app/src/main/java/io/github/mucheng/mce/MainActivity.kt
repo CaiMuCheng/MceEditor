@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
 
         mainScope.launch(Dispatchers.IO){
             editor.setText(
-                assets.open("capacity/vue.js").bufferedReader().readText()
+                assets.open("capacity/pack.js").bufferedReader().readText()
             )
         }
     }
