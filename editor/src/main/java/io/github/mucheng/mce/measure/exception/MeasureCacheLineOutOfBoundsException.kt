@@ -14,28 +14,8 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.measure
+package io.github.mucheng.mce.measure.exception
 
-import io.github.mucheng.mce.textmodel.model.TextModel
+import io.github.mucheng.mce.textmodel.exception.LineOutOfBoundsException
 
-interface IMeasureCache {
-
-    fun buildMeasureCache()
-
-    fun getMeasureCacheRow(line: Int): IMeasureCacheRow
-
-    fun getMeasureCache(): List<IMeasureCacheRow>
-
-    fun setTextModel(textModel: TextModel)
-
-    fun getTextModel(): TextModel
-
-    fun getMaxOffset(): Float
-
-    fun setMaxOffsetEnabled(isMaxOffsetEnabled: Boolean)
-
-    fun isMaxOffsetEnabled(): Boolean
-
-    fun destroy()
-
-}
+class MeasureCacheLineOutOfBoundsException(line: Int) : LineOutOfBoundsException(line)

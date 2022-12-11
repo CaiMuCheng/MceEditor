@@ -18,6 +18,8 @@ package io.github.mucheng.mce.widget
 
 import android.view.GestureDetector
 import android.view.MotionEvent
+import java.lang.Integer.max
+import java.lang.Integer.min
 
 class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureListener,
     GestureDetector.OnDoubleTapListener {
@@ -28,12 +30,8 @@ class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureLis
         this.editor = editor
     }
 
-    fun getEditor(): CodeEditor {
-        return editor
-    }
-
     override fun onDown(e: MotionEvent): Boolean {
-        return editor.isEnabled
+        return editor.isEnabled && !editor.isMeasureCacheBusy()
     }
 
     override fun onShowPress(e: MotionEvent) {
@@ -42,7 +40,7 @@ class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureLis
 
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         editor.getScroller().forceFinished(true)
-        if (editor.isEditable() && !editor.isMeasureCacheBusy()) {
+        if (editor.isEditable()) {
             val layout = editor.getLayout()
             val line = layout.getOffsetLine(e.y + editor.getOffsetY())
             val column = layout.getOffsetColumn(
@@ -61,7 +59,22 @@ class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureLis
         distanceX: Float,
         distanceY: Float
     ): Boolean {
-        return false
+        val scroller = editor.getScroller()
+        val targetDistanceX =
+            min(editor.getScrollMaxX(), max(0, scroller.currX + distanceX.toInt())) - scroller.currX
+        val targetDistanceY =
+            min(editor.getScrollMaxY(), max(0, scroller.currY + distanceY.toInt())) - scroller.currY
+
+        scroller.startScroll(
+            scroller.currX,
+            scroller.currY,
+            targetDistanceX,
+            targetDistanceY,
+            0
+        )
+
+        editor.invalidate()
+        return true
     }
 
     override fun onLongPress(e: MotionEvent) {
@@ -74,6 +87,19 @@ class EditorTouchEventHandler(editor: CodeEditor) : GestureDetector.OnGestureLis
         velocityX: Float,
         velocityY: Float
     ): Boolean {
+        val scroller = editor.getScroller()
+        scroller.forceFinished(true)
+        scroller.fling(
+            scroller.currX,
+            scroller.currY,
+            -velocityX.toInt(),
+            -velocityY.toInt(),
+            0,
+            editor.getScrollMaxX(),
+            0,
+            editor.getScrollMaxY()
+        )
+        editor.invalidate()
         return false
     }
 

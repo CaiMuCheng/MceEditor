@@ -26,6 +26,8 @@ open class EditorEventHandler(editor: CodeEditor) {
 
     private val onDrawEvents = ArrayList<OnDrawEvent>()
 
+    private val measureCacheBusyEvents = ArrayList<MeasureCacheBusyEvent>()
+
     init {
         this.editor = editor
     }
@@ -34,6 +36,7 @@ open class EditorEventHandler(editor: CodeEditor) {
         when (targetClass) {
             SizeChangedEvent::class.java -> sizeChangedEvents.add(event as SizeChangedEvent)
             OnDrawEvent::class.java -> onDrawEvents.add(event as OnDrawEvent)
+            MeasureCacheBusyEvent::class.java -> measureCacheBusyEvents.add(event as MeasureCacheBusyEvent)
         }
         event.onSubscribe()
     }
@@ -42,6 +45,7 @@ open class EditorEventHandler(editor: CodeEditor) {
         when (targetClass) {
             SizeChangedEvent::class.java -> sizeChangedEvents.remove(event as SizeChangedEvent)
             OnDrawEvent::class.java -> onDrawEvents.remove(event as OnDrawEvent)
+            MeasureCacheBusyEvent::class.java -> measureCacheBusyEvents.remove(event as MeasureCacheBusyEvent)
         }
         event.onUnsubscribe()
     }
@@ -61,6 +65,18 @@ open class EditorEventHandler(editor: CodeEditor) {
     open fun dispatchAfterOnDrawEvent() {
         onDrawEvents.forEach {
             it.onDrawAfter()
+        }
+    }
+
+    open fun dispatchMeasureCacheBeforeBusyEvent() {
+        measureCacheBusyEvents.forEach {
+            it.onMeasureCacheBeforeBusy()
+        }
+    }
+
+    open fun dispatchMeasureCacheAfterBusyEvent(e: Throwable?) {
+        measureCacheBusyEvents.forEach {
+            it.onMeasureCacheAfterBusy(e)
         }
     }
 

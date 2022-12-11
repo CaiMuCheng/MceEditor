@@ -17,15 +17,30 @@
 package io.github.mucheng.mce.widget.layout
 
 import io.github.mucheng.mce.widget.CodeEditor
-import java.lang.Integer.max
-import java.lang.Integer.min
+import kotlin.math.max
+import kotlin.math.min
 
-class TextModelLayout(editor: CodeEditor) : Layout {
+open class TextModelLayout(editor: CodeEditor) : Layout {
 
     private val editor: CodeEditor
 
+    private var isVisibleRowEnabled: Boolean
+
+    private var isQuick: Boolean
+
+    private var cachedOffset: Int
+
+    private var cachedLine: Int
+
+    private var cachedColumn: Int
+
     init {
         this.editor = editor
+        this.isVisibleRowEnabled = true
+        this.isQuick = true
+        this.cachedOffset = 0
+        this.cachedLine = 1
+        this.cachedColumn = 0
     }
 
     override fun getLayoutWidth(): Int {
@@ -55,12 +70,49 @@ class TextModelLayout(editor: CodeEditor) : Layout {
     }
 
     override fun getEndVisibleColumn(line: Int): Int {
+        if (!isVisibleRowEnabled) {
+            val textModel = editor.getText()
+            return textModel.getTextRowSize(line)
+        }
         val textModel = editor.getText()
-        return textModel.getTextRowSize(line)
+        val textRow = textModel.getTextRow(line)
+
+        if (textRow.isEmpty() || editor.isMeasureCacheBusy()) {
+            return 0
+        }
+
+        val measureUtil = editor.getMeasureUtil()
+        val offsetX = editor.getOffsetX() + editor.width
+        var widths = editor.getEditorRenderer().getLineNumberWidth()
+        val size = textRow.length
+        var index = getStartVisibleColumn(line)
+
+        while (widths < offsetX && index < size) {
+            widths += measureUtil.measureChar(line, index)
+            ++index
+        }
+        return min(size, index)
     }
 
     override fun getRowCount(): Int {
         return editor.getText().lastLine
+    }
+
+    @Suppress("OPT_IN_USAGE")
+    override fun getMaxOffset(): Float {
+        if (isQuick && !editor.isMeasureCacheBusy()) {
+            val measureCache = editor.getMeasureCache()
+            var offset = 0f
+            var workLine = getStartVisibleRow()
+            val endLine = getEndVisibleRow()
+            while (workLine < endLine) {
+                val measureCacheRow = measureCache.getMeasureCacheRow(workLine)
+                offset = max(offset, measureCacheRow.getOffset())
+                ++workLine
+            }
+            return offset
+        }
+        return editor.getMeasureCache().getMaxOffset()
     }
 
     override fun getOffsetLine(offsetY: Float): Int {
@@ -72,25 +124,16 @@ class TextModelLayout(editor: CodeEditor) : Layout {
         )
     }
 
-    @Suppress("OPT_IN_USAGE")
     override fun getOffsetColumn(line: Int, offsetX: Float): Int {
-        val measureCacheRow = editor.getMeasureCache().getMeasureCacheRow(line)
-        val measureCache = measureCacheRow?.getMeasureCache() ?: return 0
+        if (editor.isMeasureCacheBusy()) {
+            return 0
+        }
         val textRow = editor.getText().getTextRow(line)
         var widths = editor.getEditorRenderer().getLineNumberWidth()
         var workIndex = 0
+        val measureUtil = editor.getMeasureUtil()
         while (workIndex < textRow.length) {
-            val char = textRow[workIndex]
-            widths += if (isTabChar(char)) {
-                if (editor.isMeasureTabUseWhitespace()) {
-                    editor.getEditorRenderer().getLineNumberPaint()
-                        .getSpaceWidth() * editor.getTabWidth()
-                } else {
-                    measureCache[workIndex] * editor.getTabWidth()
-                }
-            } else {
-                measureCache[workIndex]
-            }
+            widths += measureUtil.measureChar(line, workIndex)
 
             if (widths > offsetX) {
                 break
@@ -100,10 +143,24 @@ class TextModelLayout(editor: CodeEditor) : Layout {
         return min(max(0, workIndex), editor.getText().getTextRowSize(line))
     }
 
-    private fun isTabChar(char: Char): Boolean {
-        return char == '\t'
+    override fun destroy() {}
+
+    override fun setVisibleRowEnabled(isVisibleRowEnabled: Boolean) {
+        this.isVisibleRowEnabled = isVisibleRowEnabled
     }
 
-    override fun destroy() {}
+    override fun isVisibleRowEnabled(): Boolean {
+        return isVisibleRowEnabled
+    }
+
+    @Suppress("OPT_IN_USAGE")
+    override fun setQuick(isQuick: Boolean) {
+        this.isQuick = isQuick
+        editor.getMeasureCache().setMaxOffsetEnabled(isQuick)
+    }
+
+    override fun isQuick(): Boolean {
+        return this.isQuick
+    }
 
 }

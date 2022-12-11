@@ -14,28 +14,12 @@
  * Do not without the author, the license, the repository link.
  */
 
-package io.github.mucheng.mce.measure
+package io.github.mucheng.mce.event
 
-import io.github.mucheng.mce.textmodel.model.TextModel
+interface MeasureCacheBusyEvent : Event {
 
-interface IMeasureCache {
+    fun onMeasureCacheBeforeBusy()
 
-    fun buildMeasureCache()
-
-    fun getMeasureCacheRow(line: Int): IMeasureCacheRow
-
-    fun getMeasureCache(): List<IMeasureCacheRow>
-
-    fun setTextModel(textModel: TextModel)
-
-    fun getTextModel(): TextModel
-
-    fun getMaxOffset(): Float
-
-    fun setMaxOffsetEnabled(isMaxOffsetEnabled: Boolean)
-
-    fun isMaxOffsetEnabled(): Boolean
-
-    fun destroy()
+    fun onMeasureCacheAfterBusy(e: Throwable?)
 
 }

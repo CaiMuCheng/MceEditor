@@ -36,10 +36,20 @@ interface Layout {
 
     fun getRowCount(): Int
 
+    fun getMaxOffset(): Float
+
     fun getOffsetLine(offsetY: Float): Int
 
     fun getOffsetColumn(line: Int, offsetX: Float): Int
 
     fun destroy()
+
+    fun setVisibleRowEnabled(isVisibleRowEnabled: Boolean)
+
+    fun isVisibleRowEnabled(): Boolean
+
+    fun setQuick(isQuick: Boolean)
+
+    fun isQuick(): Boolean
 
 }

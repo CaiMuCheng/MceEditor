@@ -21,6 +21,9 @@ plugins {
 
 android {
     namespace = "io.github.mucheng.mce"
+    libraryVariants.all {
+        generateBuildConfigProvider.get().isEnabled = false
+    }
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

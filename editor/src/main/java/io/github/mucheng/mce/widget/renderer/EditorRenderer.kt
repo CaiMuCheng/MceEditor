@@ -21,7 +21,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import io.github.mucheng.mce.measure.IMeasureCacheRow
+import io.github.mucheng.mce.measure.exception.MeasureCacheColumnOutBoundsException
+import io.github.mucheng.mce.measure.exception.MeasureCacheLineOutOfBoundsException
 import io.github.mucheng.mce.util.CachedPaint
+import io.github.mucheng.mce.util.ContextUtil
 import io.github.mucheng.mce.util.DrawUtil
 import io.github.mucheng.mce.widget.CodeEditor
 
@@ -45,6 +48,14 @@ class EditorRenderer(editor: CodeEditor) {
 
     private var lineNumberWidth: Float = 0f
 
+    private var whitespaceRadius: Float
+
+    private var tabStrokeWidth: Float
+
+    private var cacheLine: Int
+
+    private var cacheLineWidth: Float
+
     private val tabRectCache: RectF
 
     private val cursorRectCache: RectF
@@ -66,13 +77,11 @@ class EditorRenderer(editor: CodeEditor) {
         this.tabPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 1f
             isAntiAlias = true
         }
         this.whitespacePaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 1f
             isAntiAlias = true
         }
         this.cursorPaint = Paint().apply {
@@ -83,6 +92,10 @@ class EditorRenderer(editor: CodeEditor) {
         }
         this.tabRectCache = RectF()
         this.cursorRectCache = RectF()
+        this.whitespaceRadius = ContextUtil.dip2px(editor.context, 1f)
+        this.tabStrokeWidth = ContextUtil.dip2px(editor.context, 1f)
+        this.cacheLine = -1
+        this.cacheLineWidth = 0f
     }
 
     fun getLineNumberPaint(): CachedPaint {
@@ -110,6 +123,8 @@ class EditorRenderer(editor: CodeEditor) {
 
         whitespacePaint.textSize = editor.getTextSizePx()
         whitespacePaint.typeface = editor.getTypeface()
+
+        this.cacheLine = -1
     }
 
     fun onDraw(canvas: Canvas) {
@@ -120,9 +135,15 @@ class EditorRenderer(editor: CodeEditor) {
             drawLineNumber(canvas)
             drawCode(canvas)
             drawCursor(canvas)
-        } catch (e: NullPointerException) {
+        } catch (e: Exception) {
             e.printStackTrace()
-            onDraw(canvas)
+            if (
+                e is NullPointerException ||
+                e is MeasureCacheColumnOutBoundsException ||
+                e is MeasureCacheLineOutOfBoundsException
+            ) {
+                onDraw(canvas)
+            }
         }
     }
 
@@ -152,7 +173,11 @@ class EditorRenderer(editor: CodeEditor) {
             )
             ++workLine
         }
-        lineNumberWidth = lineNumberPaint.measureText(editor.getText().lastLine.toString())
+        if (cacheLine != editor.getLayout().getRowCount()) {
+            cacheLine = editor.getLayout().getRowCount()
+            cacheLineWidth = lineNumberPaint.measureText(editor.getText().lastLine.toString())
+        }
+        lineNumberWidth = cacheLineWidth
         lineNumberWidth += spacing * 2
     }
 
@@ -163,24 +188,29 @@ class EditorRenderer(editor: CodeEditor) {
         val targetLine = editor.getLayout().getEndVisibleRow()
         val measureCache = editor.getMeasureCache()
         while (workLine <= targetLine) {
+            if (editor.isMeasureCacheBusy()) {
+                return
+            }
             val measureCacheRow: IMeasureCacheRow =
-                measureCache.getMeasureCacheRow(workLine) ?: return
-            val cache = measureCacheRow.getMeasureCache()
+                measureCache.getMeasureCacheRow(workLine)
             val textRow = textModel.getTextRow(workLine)
             val y = (editor.getRowBaseline(workLine)).toFloat()
             var offsetWidth = lineNumberWidth
             var charOffsetWidth = lineNumberWidth
             val startIndex = layout.getStartVisibleColumn(workLine)
-            var workIndex = startIndex
             val endIndex = layout.getEndVisibleColumn(workLine)
-            var lastCharIsSpace = false
+            var workIndex = startIndex
             var lastCharStart = workIndex
+            var lastCharIsSpace = false
             while (workIndex < endIndex) {
+                if (editor.isMeasureCacheBusy()) {
+                    return
+                }
                 if (textRow[workIndex] == '\t') {
                     val tabWidth = if (editor.isMeasureTabUseWhitespace()) {
                         lineNumberPaint.getSpaceWidth()
                     } else {
-                        cache[workIndex]
+                        measureCacheRow[workIndex]
                     }
                     val totalTabWidth = tabWidth * editor.getTabWidth()
                     val drawTableY =
@@ -211,11 +241,10 @@ class EditorRenderer(editor: CodeEditor) {
                     continue
                 }
                 if (textRow[workIndex] == ' ') {
-                    val whitespaceWidth = cache[workIndex]
+                    val whitespaceWidth = measureCacheRow[workIndex]
                     val cx = offsetWidth + whitespaceWidth / 2f
                     val cy =
                         (workLine - 1) * editor.getRowHeight() / 2f + workLine * editor.getRowHeight() / 2f
-                    val radius = 5f
                     if (!lastCharIsSpace) {
                         // draw the code
                         DrawUtil.drawTextRun(
@@ -229,7 +258,7 @@ class EditorRenderer(editor: CodeEditor) {
                             codePaint
                         )
                     }
-                    drawWhitespace(canvas, cx, cy, radius)
+                    drawWhitespace(canvas, cx, cy, whitespaceRadius)
                     lastCharIsSpace = true
                     offsetWidth += whitespaceWidth
                     ++workIndex
@@ -241,7 +270,7 @@ class EditorRenderer(editor: CodeEditor) {
                     charOffsetWidth = offsetWidth
                 }
                 lastCharIsSpace = false
-                offsetWidth += cache[workIndex]
+                offsetWidth += measureCacheRow[workIndex]
                 ++workIndex
             }
             if (!lastCharIsSpace && workIndex > startIndex) {
@@ -263,6 +292,7 @@ class EditorRenderer(editor: CodeEditor) {
 
     private fun drawTab(canvas: Canvas, startX: Float, endX: Float, y: Float) {
         tabRectCache.set(startX, y, endX, y)
+        tabPaint.strokeWidth = tabStrokeWidth
         canvas.drawRect(tabRectCache, tabPaint)
     }
 
@@ -278,13 +308,12 @@ class EditorRenderer(editor: CodeEditor) {
         val cursor = editor.getCursor()
         val workLine = editor.getLayout().getStartVisibleRow()
         val targetLine = editor.getLayout().getEndVisibleRow()
-        if (cursor.isSelected() || (cursor.getLeftLine() < workLine || cursor.getLeftLine() > targetLine)) {
+        if (cursor.isSelected() || (cursor.getLeftLine() < workLine || cursor.getLeftLine() > targetLine) || editor.isMeasureCacheBusy()) {
             return
         }
 
         val measureCache = editor.getMeasureCache()
-        val measureCacheRow = measureCache.getMeasureCacheRow(cursor.getLeftLine()) ?: return
-        val cache = measureCacheRow.getMeasureCache()
+        val measureCacheRow = measureCache.getMeasureCacheRow(cursor.getLeftLine())
         val len = cursor.getLeftColumn()
         val textRow = editor.getText().getTextRow(cursor.getLeftLine())
 
@@ -295,12 +324,12 @@ class EditorRenderer(editor: CodeEditor) {
                 left += if (editor.isMeasureTabUseWhitespace()) {
                     lineNumberPaint.getSpaceWidth() * editor.getTabWidth()
                 } else {
-                    cache[index] * editor.getTabWidth()
+                    measureCacheRow[index] * editor.getTabWidth()
                 }
                 ++index
                 continue
             }
-            left += cache[index]
+            left += measureCacheRow[index]
             ++index
         }
 

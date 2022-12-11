@@ -39,6 +39,13 @@ open class MutableFloatArray(capacity: Int) {
             return value.size
         }
 
+    private var _result: Float
+
+    val result: Float
+        get() {
+            return _result
+        }
+
     private var _length: Int
 
     val length: Int
@@ -50,12 +57,14 @@ open class MutableFloatArray(capacity: Int) {
         // do init
         this.value = FloatArray(if (capacity < DEFAULT_CAPACITY) DEFAULT_CAPACITY else capacity)
         this._length = 0
+        this._result = 0f
     }
 
     open fun ensureCapacity(capacity: Int) {
         if (value.size < capacity) {
             // copy the value
-            val newValue = FloatArray(if (value.size * 2 < capacity) capacity + 2 else value.size * 2)
+            val newValue =
+                FloatArray(if (value.size * 2 < capacity) capacity + 2 else value.size * 2)
             System.arraycopy(value, 0, newValue, 0, _length)
             value = newValue
         }
@@ -68,6 +77,7 @@ open class MutableFloatArray(capacity: Int) {
             System.arraycopy(value, index, value, 1 + index, _length - index)
         }
         value[index] = float
+        _result += float
         ++_length
     }
 
@@ -90,6 +100,7 @@ open class MutableFloatArray(capacity: Int) {
         while (charIndex < len) {
             val float = floatArray[charIndex]
             value[offset++] = float
+            _result += float
             ++charIndex
         }
         _length += len
@@ -110,6 +121,11 @@ open class MutableFloatArray(capacity: Int) {
 
     open fun delete(startIndex: Int, endIndex: Int) {
         checkIndexRange(startIndex, endIndex)
+        var workIndex = startIndex
+        while (workIndex < endIndex) {
+            _result -= value[workIndex]
+            ++workIndex
+        }
         val len = endIndex - startIndex
         System.arraycopy(value, len + startIndex, value, startIndex, _length - endIndex)
         _length -= len
@@ -155,9 +171,15 @@ open class MutableFloatArray(capacity: Int) {
         this._length = length
     }
 
+    @UnsafeApi
+    open fun setResult(result: Float) {
+        this._result = result
+    }
+
     open fun clear() {
         this.value = FloatArray(0)
         _length = 0
+        _result = 0f
     }
 
     @Suppress("OPT_IN_USAGE")
@@ -169,6 +191,9 @@ open class MutableFloatArray(capacity: Int) {
             return true
         }
         if (other !is MutableFloatArray) {
+            return false
+        }
+        if (other._result != _result) {
             return false
         }
         return value.contentEquals(other.getUnsafeValue())

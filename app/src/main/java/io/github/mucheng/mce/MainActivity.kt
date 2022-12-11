@@ -21,6 +21,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import io.github.mucheng.mce.databinding.ActivityMainBinding
 import io.github.mucheng.mce.textmodel.model.TextModel
+import io.github.mucheng.mce.textmodel.model.android.AndroidTextModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -39,16 +40,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(viewBinding.root)
 
         val editor = viewBinding.editor
-        editor.setText("Demo")
         editor.setLineSpacing(2f, 1.1f)
         editor.setTypeface(Typeface.createFromAsset(assets, "font/JetBrainsMono-Regular.ttf"))
 
         mainScope.launch(Dispatchers.IO){
-            val text = TextModel("var a = 10;\n".repeat(10000))
-            editor.setText(text)
-            withContext(Dispatchers.Main) {
-                editor.setTypeface(Typeface.createFromAsset(assets, "font/RecMonoLinear-Regular.ttf"))
-            }
+            editor.setText(
+                assets.open("capacity/vue.js").bufferedReader().readText()
+            )
         }
     }
 

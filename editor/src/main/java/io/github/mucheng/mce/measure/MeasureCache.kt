@@ -17,9 +17,11 @@
 package io.github.mucheng.mce.measure
 
 import io.github.mucheng.mce.annotations.UnsupportedUserUsage
+import io.github.mucheng.mce.textmodel.exception.LineOutOfBoundsException
 import io.github.mucheng.mce.textmodel.listener.ITextModelListener
 import io.github.mucheng.mce.textmodel.model.TextModel
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
+import java.lang.Float.max
 
 @Suppress("LeakingThis")
 open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : IMeasureCache,
@@ -31,9 +33,15 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
 
     private val cache: MutableList<MeasureCacheRow> = ArrayList()
 
+    private var isMaxOffsetEnabled: Boolean
+
+    private var maxOffset: Float
+
     init {
         this.textModel = textModel
         this.editorRenderer = editorRenderer
+        this.isMaxOffsetEnabled = false
+        this.maxOffset = 0f
         buildMeasureCache()
         textModel.addListener(this)
     }
@@ -45,16 +53,36 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
     override fun buildMeasureCache() {
         synchronized(this::class.java) {
             cache.clear()
+            this.maxOffset = 0f
             var workLine = 1
             while (workLine <= textModel.lastLine) {
-                cache.add(MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer))
+                val measureCacheRow =
+                    MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer)
+                maxOffset = max(measureCacheRow.getOffset(), maxOffset)
+                cache.add(measureCacheRow)
                 ++workLine
             }
         }
     }
 
-    override fun getMeasureCacheRow(line: Int): MeasureCacheRow? {
-        return cache[line - 1]
+    private fun resetMaxOffset() {
+        if (isMaxOffsetEnabled) {
+            this.maxOffset = 0f
+            var workLine = 1
+            while (workLine <= textModel.lastLine) {
+                maxOffset = max(cache[workLine - 1].getOffset(), maxOffset)
+                ++workLine
+            }
+        }
+    }
+
+    @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
+    override fun getMeasureCacheRow(line: Int): MeasureCacheRow {
+        return try {
+            cache[line - 1]!!
+        } catch (e: Throwable) {
+            throw LineOutOfBoundsException(line)
+        }
     }
 
     override fun getMeasureCache(): List<IMeasureCacheRow> {
@@ -74,6 +102,20 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         return textModel
     }
 
+    override fun getMaxOffset(): Float {
+        return maxOffset
+    }
+
+    override fun setMaxOffsetEnabled(isMaxOffsetEnabled: Boolean) {
+        this.isMaxOffsetEnabled = isMaxOffsetEnabled
+        this.maxOffset = 0f
+        resetMaxOffset()
+    }
+
+    override fun isMaxOffsetEnabled(): Boolean {
+        return isMaxOffsetEnabled
+    }
+
     override fun destroy() {
         textModel.removeListener(this)
         cache.clear()
@@ -87,26 +129,34 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         charSequence: CharSequence
     ) {
         if (startLine == endLine) {
-            cache[startLine - 1].afterInsert(startColumn, endColumn, charSequence)
+            val measureCacheRow = cache[startLine - 1]
+            measureCacheRow.afterInsert(startColumn, endColumn, charSequence)
+            maxOffset = max(measureCacheRow.getOffset(), maxOffset)
         } else {
             var workLine = startLine + 1
             while (workLine <= endLine) {
+                val currentMeasureCacheRow =
+                    MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer)
                 cache.add(
                     workLine - 1,
-                    MeasureCacheRow(textModel.getTextRow(workLine), editorRenderer)
+                    currentMeasureCacheRow
                 )
+                maxOffset = max(currentMeasureCacheRow.getOffset(), maxOffset)
                 ++workLine
             }
 
             val startTextRow = textModel.getTextRow(startLine)
-            cache[startLine - 1].afterInsert(
+            val endMeasureCacheRow = cache[startLine - 1]
+            endMeasureCacheRow.afterInsert(
                 startColumn,
                 startTextRow.length,
                 startTextRow.subSequence(startColumn, startTextRow.length)
             )
+            maxOffset = max(endMeasureCacheRow.getOffset(), maxOffset)
         }
     }
 
+    @Suppress("OPT_IN_USAGE")
     override fun afterDelete(
         startLine: Int,
         startColumn: Int,
@@ -115,7 +165,9 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
         charSequence: CharSequence
     ) {
         if (startLine == endLine) {
-            cache[startLine - 1].afterDelete(startColumn, endColumn)
+            val measureCacheRow = cache[startLine - 1]
+            measureCacheRow.afterDelete(startColumn, endColumn)
+            resetMaxOffset()
         } else {
             val insertedCacheRow = cache.removeAt(endLine - 1)
             cache[startLine - 1].append(insertedCacheRow.getMeasureCache())
@@ -130,6 +182,7 @@ open class MeasureCache(textModel: TextModel, editorRenderer: EditorRenderer) : 
                     ++modCount
                 }
             }
+            resetMaxOffset()
         }
     }
 

@@ -16,13 +16,19 @@
 
 package io.github.mucheng.mce.measure
 
+import io.github.mucheng.mce.textmodel.annoations.UnsafeApi
 import io.github.mucheng.mce.textmodel.model.TextRow
 
 interface IMeasureCacheRow {
 
+    @UnsafeApi
     fun getMeasureCache(): FloatArray
 
+    operator fun get(index: Int): Float
+
     fun getMeasureCacheLength(): Int
+
+    fun getOffset(): Float
 
     fun append(floatArray: FloatArray)
 

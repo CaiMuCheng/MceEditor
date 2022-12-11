@@ -42,6 +42,7 @@ import io.github.mucheng.mce.textmodel.util.Cursor
 import io.github.mucheng.mce.util.ContextUtil
 import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.event.EditorEventHandler
+import io.github.mucheng.mce.util.MeasureUtil
 import io.github.mucheng.mce.widget.layout.Layout
 import io.github.mucheng.mce.widget.layout.TextModelLayout
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
@@ -49,7 +50,9 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import java.lang.Integer.max
 import java.util.concurrent.atomic.AtomicBoolean
 
 
@@ -78,6 +81,8 @@ open class CodeEditor @JvmOverloads constructor(
     private val editorRenderer: EditorRenderer
 
     private var measureCache: IMeasureCache
+
+    private val measureUtil: MeasureUtil
 
     private val scroller: OverScroller
 
@@ -117,11 +122,14 @@ open class CodeEditor @JvmOverloads constructor(
 
     private var baseCoroutineScope: CoroutineScope
 
+    private val measureCacheBusyLock = Mutex()
+
     init {
         textModel = AndroidTextModel()
         cursor = Cursor(textModel)
         editorRenderer = EditorRenderer(this)
         measureCache = MeasureCache(textModel, editorRenderer)
+        measureUtil = MeasureUtil(this)
         scroller = OverScroller(context)
         layout = TextModelLayout(this)
         inputMethodManager =
@@ -229,6 +237,26 @@ open class CodeEditor @JvmOverloads constructor(
         return isEditable
     }
 
+    override fun computeScroll() {
+        super.computeScroll()
+        if (scroller.computeScrollOffset()) {
+            scrollX = scroller.currX
+            scrollY = scroller.currY
+            postInvalidateOnAnimation()
+        }
+    }
+
+    open fun getScrollMaxX(): Int {
+        return max(
+            0,
+            (layout.getMaxOffset() - layout.getLayoutWidth() / 2f + editorRenderer.getLineNumberWidth()).toInt()
+        )
+    }
+
+    open fun getScrollMaxY(): Int {
+        return max(0, getRowBaseline(layout.getRowCount()) - height / 2)
+    }
+
     override fun invalidate() {
         if (!this.isMeasureCacheBusy.get()) {
             super.invalidate()
@@ -256,25 +284,34 @@ open class CodeEditor @JvmOverloads constructor(
     open fun buildMeasureCache(textModel: TextModel? = null) {
         // build the measure cache
         if (isMeasureCacheInMainThread()) {
+            editorEventHandler.dispatchBeforeOnDrawEvent()
             if (textModel != null) {
                 measureCache.setTextModel(textModel)
             } else {
                 measureCache.buildMeasureCache()
             }
+            editorEventHandler.dispatchAfterOnDrawEvent()
         } else {
-            baseCoroutineScope.launch(Dispatchers.IO + CoroutineName("RebuildMeasureCacheCoroutine")) {
-                isMeasureCacheBusy.set(true)
-                withContext(Dispatchers.Main) {
-                    forceInvalidate()
-                }
-                if (textModel != null) {
-                    measureCache.setTextModel(textModel)
-                } else {
-                    measureCache.buildMeasureCache()
+            baseCoroutineScope.launch(Dispatchers.IO + CoroutineName("BuildMeasureCacheCoroutine")) {
+                measureCacheBusyLock.lock()
+                try {
+                    isMeasureCacheBusy.set(true)
+                    withContext(Dispatchers.Main) {
+                        forceInvalidate()
+                    }
+                    editorEventHandler.dispatchMeasureCacheBeforeBusyEvent()
+                    if (textModel != null) {
+                        measureCache.setTextModel(textModel)
+                    } else {
+                        measureCache.buildMeasureCache()
+                    }
+                } finally {
+                    measureCacheBusyLock.unlock()
                 }
             }.invokeOnCompletion {
                 it?.printStackTrace()
                 isMeasureCacheBusy.set(false)
+                editorEventHandler.dispatchMeasureCacheAfterBusyEvent(it)
                 invalidate()
             }
         }
@@ -313,6 +350,10 @@ open class CodeEditor @JvmOverloads constructor(
     @UnsafeApi
     open fun getMeasureCache(): IMeasureCache {
         return this.measureCache
+    }
+
+    open fun getMeasureUtil(): MeasureUtil {
+        return this.measureUtil
     }
 
     private fun autoBuildMeasureCache() {

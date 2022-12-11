@@ -16,6 +16,9 @@
 
 package io.github.mucheng.mce.measure
 
+import io.github.mucheng.mce.measure.exception.MeasureCacheColumnOutBoundsException
+import io.github.mucheng.mce.textmodel.annoations.UnsafeApi
+import io.github.mucheng.mce.textmodel.exception.ColumnOutOfBoundsException
 import io.github.mucheng.mce.textmodel.model.MutableFloatArray
 import io.github.mucheng.mce.textmodel.model.TextRow
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
@@ -49,15 +52,34 @@ class MeasureCacheRow(textRow: TextRow, editorRenderer: EditorRenderer) : IMeasu
         val paint = editorRenderer.getCodePaint()
         paint.myGetTextWidths(textRow, 0, textRow.length, mutableFloatArray.getUnsafeValue())
         mutableFloatArray.setLength(textRow.length)
+        var result = 0f
+        var resultIndex = 0
+        while (resultIndex < textRow.length) {
+            result += mutableFloatArray[resultIndex]
+            ++resultIndex
+        }
+        mutableFloatArray.setResult(result)
     }
 
-    @Suppress("OPT_IN_USAGE")
+    @UnsafeApi
     override fun getMeasureCache(): FloatArray {
         return this.mutableFloatArray.getUnsafeValue()
     }
 
+    override operator fun get(index: Int): Float {
+        return try {
+            mutableFloatArray[index]
+        } catch (e: ColumnOutOfBoundsException) {
+            throw MeasureCacheColumnOutBoundsException(index)
+        }
+    }
+
     override fun getMeasureCacheLength(): Int {
         return length
+    }
+
+    override fun getOffset(): Float {
+        return mutableFloatArray.result
     }
 
     override fun append(floatArray: FloatArray) {
@@ -89,6 +111,7 @@ class MeasureCacheRow(textRow: TextRow, editorRenderer: EditorRenderer) : IMeasu
         this.mutableFloatArray.clear()
     }
 
+    @Suppress("OPT_IN_USAGE")
     override fun toString(): String {
         return "MeasureCacheRow(textRow=$textRow, mutableFloatArray=${getMeasureCache().contentToString()}, length=$length)"
     }
