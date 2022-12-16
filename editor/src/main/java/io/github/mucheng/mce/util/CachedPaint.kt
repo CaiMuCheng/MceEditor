@@ -18,9 +18,12 @@ package io.github.mucheng.mce.util
 
 import android.graphics.Typeface
 import android.text.TextPaint
+import io.github.mucheng.mce.widget.CodeEditor
 
 @Suppress("unused", "JoinDeclarationAndAssignment")
-class CachedPaint : TextPaint() {
+class CachedPaint(editor: CodeEditor) : TextPaint() {
+
+    private val editor: CodeEditor
 
     private var emptyWidth: Float
 
@@ -31,6 +34,7 @@ class CachedPaint : TextPaint() {
     private val charCache = FloatArray(1)
 
     init {
+        this.editor = editor
         emptyWidth = measureText("\u0000")
         spaceWidth = measureText(" ")
         tabWidth = measureText("\t")
@@ -38,6 +42,7 @@ class CachedPaint : TextPaint() {
 
     @Suppress("MemberVisibilityCanBePrivate")
     fun updateAttributes() {
+        emptyWidth = measureText("\u0000")
         spaceWidth = measureText(" ")
         tabWidth = measureText("\t")
     }
@@ -71,7 +76,11 @@ class CachedPaint : TextPaint() {
                 }
 
                 '\t' -> {
-                    widths[index] = tabWidth
+                    widths[index] = if (editor.isMeasureTabUseWhitespace()) {
+                        spaceWidth * editor.getTabWidth()
+                    } else {
+                        tabWidth * editor.getTabWidth()
+                    }
                 }
 
                 else -> {

@@ -31,7 +31,6 @@ import io.github.mucheng.mce.widget.CodeEditor
 @Suppress("OPT_IN_USAGE")
 class EditorRenderer(editor: CodeEditor) {
 
-
     private val editor: CodeEditor
 
     private val buildMeasureCacheBusyPaint: CachedPaint
@@ -62,15 +61,15 @@ class EditorRenderer(editor: CodeEditor) {
 
     init {
         this.editor = editor
-        this.buildMeasureCacheBusyPaint = CachedPaint().apply {
+        this.buildMeasureCacheBusyPaint = CachedPaint(editor).apply {
             color = Color.BLACK
             isAntiAlias = true
         }
-        this.lineNumberPaint = CachedPaint().apply {
+        this.lineNumberPaint = CachedPaint(editor).apply {
             color = Color.BLACK
             isAntiAlias = true
         }
-        this.codePaint = CachedPaint().apply {
+        this.codePaint = CachedPaint(editor).apply {
             color = Color.BLACK
             isAntiAlias = true
         }
@@ -196,110 +195,75 @@ class EditorRenderer(editor: CodeEditor) {
             val textRow = textModel.getTextRow(workLine)
             val y = (editor.getRowBaseline(workLine)).toFloat()
             var offsetWidth = lineNumberWidth
-            var charOffsetWidth = lineNumberWidth
-            val startIndex = layout.getStartVisibleColumn(workLine)
+            var workIndex = layout.getStartVisibleColumn(workLine)
             val endIndex = layout.getEndVisibleColumn(workLine)
-            var workIndex = startIndex
-            var lastCharStart = workIndex
-            var lastCharIsSpace = false
             while (workIndex < endIndex) {
                 if (editor.isMeasureCacheBusy()) {
                     return
                 }
-                if (textRow[workIndex] == '\t') {
-                    val tabWidth = if (editor.isMeasureTabUseWhitespace()) {
-                        lineNumberPaint.getSpaceWidth()
-                    } else {
-                        measureCacheRow[workIndex]
-                    }
-                    val totalTabWidth = tabWidth * editor.getTabWidth()
-                    val drawTableY =
-                        (workLine - 1) * editor.getRowHeight() + editor.getRowHeight() / 2f
-                    val smallTabWidth = tabWidth / 3f
-                    if (!lastCharIsSpace) {
-                        // draw the code
-                        DrawUtil.drawTextRun(
-                            canvas,
-                            textRow,
-                            lastCharStart,
-                            workIndex,
-                            charOffsetWidth,
-                            y,
-                            false,
-                            codePaint
-                        )
-                    }
+                val char = textRow[workIndex]
+                if (char == '\t') {
+                    val width = measureCacheRow[workIndex]
                     drawTab(
                         canvas,
-                        offsetWidth + smallTabWidth,
-                        offsetWidth + totalTabWidth - smallTabWidth,
-                        drawTableY
+                        workLine,
+                        offsetWidth,
+                        width
                     )
-                    lastCharIsSpace = true
-                    offsetWidth += totalTabWidth
+                    offsetWidth += width
                     ++workIndex
                     continue
                 }
-                if (textRow[workIndex] == ' ') {
-                    val whitespaceWidth = measureCacheRow[workIndex]
-                    val cx = offsetWidth + whitespaceWidth / 2f
-                    val cy =
-                        (workLine - 1) * editor.getRowHeight() / 2f + workLine * editor.getRowHeight() / 2f
-                    if (!lastCharIsSpace) {
-                        // draw the code
-                        DrawUtil.drawTextRun(
-                            canvas,
-                            textRow,
-                            lastCharStart,
-                            workIndex,
-                            charOffsetWidth,
-                            y,
-                            false,
-                            codePaint
-                        )
-                    }
-                    drawWhitespace(canvas, cx, cy, whitespaceRadius)
-                    lastCharIsSpace = true
-                    offsetWidth += whitespaceWidth
+                if (char == ' ') {
+                    val width = measureCacheRow[workIndex]
+                    drawWhitespace(canvas, workLine, offsetWidth, width)
+                    offsetWidth += width
                     ++workIndex
                     continue
                 }
 
-                if (lastCharIsSpace) {
-                    lastCharStart = workIndex
-                    charOffsetWidth = offsetWidth
-                }
-                lastCharIsSpace = false
+                DrawUtil.drawTextRun(
+                    canvas, textRow, workIndex, workIndex + 1, offsetWidth, y, false, codePaint
+                )
+
                 offsetWidth += measureCacheRow[workIndex]
                 ++workIndex
-            }
-            if (!lastCharIsSpace && workIndex > startIndex) {
-                // draw the code
-                DrawUtil.drawTextRun(
-                    canvas,
-                    textRow,
-                    lastCharStart,
-                    workIndex,
-                    charOffsetWidth,
-                    y,
-                    false,
-                    codePaint
-                )
             }
             ++workLine
         }
     }
 
-    private fun drawTab(canvas: Canvas, startX: Float, endX: Float, y: Float) {
-        tabRectCache.set(startX, y, endX, y)
+    private fun drawTab(
+        canvas: Canvas,
+        line: Int,
+        offsetWidth: Float,
+        totalTabWidth: Float
+    ) {
+        val drawTabY =
+            (line - 1) * editor.getRowHeight() + editor.getRowHeight() / 2f
+        val smallTabWidth = totalTabWidth / editor.getTabWidth() / 3f
+        tabRectCache.set(
+            offsetWidth + smallTabWidth,
+            drawTabY,
+            offsetWidth + totalTabWidth - smallTabWidth,
+            drawTabY
+        )
         tabPaint.strokeWidth = tabStrokeWidth
         canvas.drawRect(tabRectCache, tabPaint)
     }
 
     @Suppress("SameParameterValue")
-    private fun drawWhitespace(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
+    private fun drawWhitespace(
+        canvas: Canvas,
+        line: Int,
+        offsetWidth: Float,
+        totalWhiteSpace: Float
+    ) {
+        val cx = offsetWidth + totalWhiteSpace / 2f
+        val cy =
+            (line - 1) * editor.getRowHeight() / 2f + line * editor.getRowHeight() / 2f
         canvas.drawCircle(
-            cx, cy, radius, whitespacePaint
+            cx, cy, whitespaceRadius, whitespacePaint
         )
     }
 
@@ -315,20 +279,10 @@ class EditorRenderer(editor: CodeEditor) {
         val measureCache = editor.getMeasureCache()
         val measureCacheRow = measureCache.getMeasureCacheRow(cursor.getLeftLine())
         val len = cursor.getLeftColumn()
-        val textRow = editor.getText().getTextRow(cursor.getLeftLine())
 
         var left = lineNumberWidth
         var index = 0
         while (index < len) {
-            if (textRow[index] == '\t') {
-                left += if (editor.isMeasureTabUseWhitespace()) {
-                    lineNumberPaint.getSpaceWidth() * editor.getTabWidth()
-                } else {
-                    measureCacheRow[index] * editor.getTabWidth()
-                }
-                ++index
-                continue
-            }
             left += measureCacheRow[index]
             ++index
         }

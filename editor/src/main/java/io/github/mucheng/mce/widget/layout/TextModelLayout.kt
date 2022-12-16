@@ -16,7 +16,6 @@
 
 package io.github.mucheng.mce.widget.layout
 
-import android.util.Log
 import io.github.mucheng.mce.widget.CodeEditor
 import kotlin.math.max
 import kotlin.math.min
@@ -61,6 +60,7 @@ open class TextModelLayout(editor: CodeEditor) : Layout {
         return 0
     }
 
+    @Suppress("OPT_IN_USAGE")
     override fun getEndVisibleColumn(line: Int): Int {
         if (!isVisibleRowEnabled) {
             val textModel = editor.getText()
@@ -73,17 +73,18 @@ open class TextModelLayout(editor: CodeEditor) : Layout {
             return 0
         }
 
-        val measureUtil = editor.getMeasureUtil()
+        val measureCacheRow = editor.getMeasureCache().getMeasureCacheRow(line)
         val offsetX = editor.getOffsetX() + editor.width
         var widths = editor.getEditorRenderer().getLineNumberWidth()
         val size = textRow.length
         var index = getStartVisibleColumn(line)
 
         while (widths < offsetX && index < size) {
-            widths += measureUtil.measureChar(line, index)
+            widths += measureCacheRow[index]
             ++index
         }
-        return min(size, index)
+        index = min(size, index)
+        return index
     }
 
     override fun getRowCount(): Int {
@@ -116,16 +117,17 @@ open class TextModelLayout(editor: CodeEditor) : Layout {
         )
     }
 
+    @Suppress("OPT_IN_USAGE")
     override fun getOffsetColumn(line: Int, offsetX: Float): Int {
         if (editor.isMeasureCacheBusy()) {
             return 0
         }
         val textRow = editor.getText().getTextRow(line)
+        val measureCacheRow = editor.getMeasureCache().getMeasureCacheRow(line)
         var widths = editor.getEditorRenderer().getLineNumberWidth()
         var workIndex = 0
-        val measureUtil = editor.getMeasureUtil()
         while (workIndex < textRow.length) {
-            widths += measureUtil.measureChar(line, workIndex)
+            widths += measureCacheRow[workIndex]
 
             if (widths > offsetX) {
                 break

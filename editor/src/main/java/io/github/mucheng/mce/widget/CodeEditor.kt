@@ -42,7 +42,6 @@ import io.github.mucheng.mce.textmodel.util.Cursor
 import io.github.mucheng.mce.util.ContextUtil
 import io.github.mucheng.mce.util.Logger
 import io.github.mucheng.mce.event.EditorEventHandler
-import io.github.mucheng.mce.util.MeasureUtil
 import io.github.mucheng.mce.widget.layout.Layout
 import io.github.mucheng.mce.widget.layout.TextModelLayout
 import io.github.mucheng.mce.widget.renderer.EditorRenderer
@@ -81,8 +80,6 @@ open class CodeEditor @JvmOverloads constructor(
     private val editorRenderer: EditorRenderer
 
     private var measureCache: IMeasureCache
-
-    private val measureUtil: MeasureUtil
 
     private val scroller: OverScroller
 
@@ -129,7 +126,6 @@ open class CodeEditor @JvmOverloads constructor(
         cursor = Cursor(textModel)
         editorRenderer = EditorRenderer(this)
         measureCache = MeasureCache(textModel, editorRenderer)
-        measureUtil = MeasureUtil(this)
         scroller = OverScroller(context)
         layout = TextModelLayout(this)
         inputMethodManager =
@@ -146,7 +142,7 @@ open class CodeEditor @JvmOverloads constructor(
 
         this.textSizePx = ContextUtil.sp2px(context, DEFAULT_TEXT_SIZE)
         this.lineNumberSpacingPx = ContextUtil.dip2px(context, DEFAULT_LINE_NUMBER_SPACING)
-        setTabWidth(4)
+        this.tabWidth = 4
         isFocusable = true
         isFocusableInTouchMode = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -257,28 +253,12 @@ open class CodeEditor @JvmOverloads constructor(
         return max(0, getRowBaseline(layout.getRowCount()) - height / 2)
     }
 
-    override fun invalidate() {
-        if (!this.isMeasureCacheBusy.get()) {
-            super.invalidate()
-        }
-    }
-
-    override fun postInvalidate() {
-        if (!this.isMeasureCacheBusy.get()) {
-            super.postInvalidate()
-        }
-    }
-
     open fun setEditorEventHandler(editorEventHandler: EditorEventHandler) {
         this.editorEventHandler = editorEventHandler
     }
 
     open fun getEditorEventHandler(): EditorEventHandler {
         return this.editorEventHandler
-    }
-
-    private fun forceInvalidate() {
-        super.invalidate()
     }
 
     open fun buildMeasureCache(textModel: TextModel? = null) {
@@ -297,7 +277,7 @@ open class CodeEditor @JvmOverloads constructor(
                 try {
                     isMeasureCacheBusy.set(true)
                     withContext(Dispatchers.Main) {
-                        forceInvalidate()
+                        invalidate()
                     }
                     editorEventHandler.dispatchMeasureCacheBeforeBusyEvent()
                     if (textModel != null) {
@@ -350,10 +330,6 @@ open class CodeEditor @JvmOverloads constructor(
     @UnsafeApi
     open fun getMeasureCache(): IMeasureCache {
         return this.measureCache
-    }
-
-    open fun getMeasureUtil(): MeasureUtil {
-        return this.measureUtil
     }
 
     private fun autoBuildMeasureCache() {
@@ -447,7 +423,10 @@ open class CodeEditor @JvmOverloads constructor(
         if (width < 1) {
             throw IllegalArgumentException("Tab width must not be less than 1.")
         }
-        this.tabWidth = width
+        if (tabWidth != width) {
+            this.tabWidth = width
+            autoBuildMeasureCache()
+        }
     }
 
     open fun getTabWidth(): Int {
@@ -455,7 +434,10 @@ open class CodeEditor @JvmOverloads constructor(
     }
 
     open fun setMeasureTabUseWhitespace(isEnabled: Boolean) {
-        this.measureTabUseWhitespace = isEnabled
+        if (measureTabUseWhitespace != isEnabled) {
+            this.measureTabUseWhitespace = isEnabled
+            autoBuildMeasureCache()
+        }
     }
 
     open fun isMeasureTabUseWhitespace(): Boolean {
